@@ -61,6 +61,13 @@
     width: min(330px, 40vw); background: white; border-left: 1px solid var(--border);
     display: flex; flex-direction: column; overflow-y: auto;
   }
+  .sidebar.collapsed { width: 0; min-width: 0; border-left: none; overflow: hidden; padding: 0; }
+  #panelToggle {
+    position: absolute; top: 50%; right: 0; transform: translateY(-50%); z-index: 25;
+    background: var(--ember); color: #fff; border: none; border-radius: 6px 0 0 6px;
+    padding: 16px 6px; font-size: 15px; line-height: 1; cursor: pointer;
+    box-shadow: -1px 0 4px rgba(0,0,0,.15); touch-action: manipulation;
+  }
   /* iPad / narrow screens: compact chrome so the plan keeps the room */
   @media (max-width: 1100px) {
     header { padding: 7px 10px; gap: 10px; }
@@ -313,6 +320,7 @@
       <button data-k="0" class="wide">0</button><button data-k="enter" class="wide go">&#10003; Enter</button>
     </div>
     <div class="hint" id="hint"></div>
+  <button id="panelToggle" title="Hide the panel for more drawing space">&raquo;</button>
   </div>
   <div class="lenpad" id="pickerModal"><div class="pickerlist" id="pickerList"></div></div>
   <div class="lenpad" id="confirmModal">
@@ -703,6 +711,24 @@ function resize() {
   render();
 }
 window.addEventListener('resize', resize);
+
+// ---------- collapsible side panel (more room to draw) ----------
+// Deferred to load so it runs AFTER all globals are initialised (this sits above the const P
+// definition, so referencing P here directly would hit its temporal dead zone).
+window.addEventListener('load', () => {
+  const sidebarEl = document.querySelector('.sidebar');
+  const toggle = document.getElementById('panelToggle');
+  if (!sidebarEl || !toggle) return;
+  const setPanelCollapsed = c => {
+    sidebarEl.classList.toggle('collapsed', c);
+    toggle.innerHTML = c ? '&laquo;' : '&raquo;';
+    toggle.title = c ? 'Show the panel' : 'Hide the panel for more drawing space';
+    try { localStorage.setItem('emberPanelCollapsed', c ? '1' : '0'); } catch (e) {}
+    resize();   // canvas re-fits to the freed width
+  };
+  toggle.onclick = () => setPanelCollapsed(!sidebarEl.classList.contains('collapsed'));
+  try { if (localStorage.getItem('emberPanelCollapsed') === '1') setPanelCollapsed(true); } catch (e) {}
+});
 
 function render() {
   ctx.clearRect(0, 0, cv.width, cv.height);
