@@ -1,0 +1,3453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>EmberSurvey — Commercial EPC Survey</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#E76C13">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="EmberSurvey">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --ember: #E76C13;
+    --ember-dark: #c55a0a;
+    --grey: #f4f4f4;
+    --border: #ddd;
+    --text: #2b2b2b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: var(--text); background: #fafafa; height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+  header {
+    background: var(--ember); color: white; padding: 10px 18px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; font-weight: 600; }
+  header .sub { font-size: 12px; opacity: 0.9; }
+  header input#jobName {
+    margin-left: auto; padding: 6px 10px; border: none; border-radius: 4px;
+    font-size: 13px; width: min(280px, 36vw);
+  }
+
+  .toolbar {
+    background: white; border-bottom: 1px solid var(--border);
+    padding: 8px 18px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .toolbar button {
+    padding: 7px 14px; border: 1px solid var(--border); background: white;
+    border-radius: 5px; cursor: pointer; font-size: 13px;
+    touch-action: manipulation;   /* iOS: fire taps immediately, no double-tap-zoom interception */
+  }
+  .toolbar button:hover { background: var(--grey); }
+  .toolbar button.active { background: var(--ember); color: white; border-color: var(--ember); }
+  .toolbar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 6px; }
+  .toolbar label { font-size: 12px; color: #666; }
+  .toolbar input[type=number] { width: 60px; padding: 5px; border: 1px solid var(--border); border-radius: 4px; }
+
+  .main { flex: 1; display: flex; overflow: hidden; }
+
+  .canvas-wrap { flex: 1; min-width: 0; min-height: 0; overflow: hidden; position: relative; background: white; }
+  canvas { display: block; cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; }
+  canvas.select-mode { cursor: default; }
+  #wallTools { display: flex; gap: 6px; align-items: center; }
+  #wallTools input { width: 76px; padding: 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; }
+  #wallTools button.go { background: var(--ember); color: white; border-color: var(--ember); }
+
+  .sidebar {
+    width: min(330px, 40vw); background: white; border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  /* iPad / narrow screens: compact chrome so the plan keeps the room */
+  @media (max-width: 1100px) {
+    header { padding: 7px 10px; gap: 10px; }
+    header h1 { font-size: 14px; }
+    header .sub { display: none; }
+    .toolbar { padding: 6px 8px; gap: 5px; }
+    .toolbar button { padding: 6px 9px; font-size: 12px; }
+    .toolbar input[type=number] { width: 52px; padding: 4px; }
+  }
+  .sidebar h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--ember); padding: 14px 16px 8px;
+  }
+  .props { padding: 0 16px 14px; border-bottom: 1px solid var(--border); }
+  .props .field { margin-bottom: 10px; }
+  .props label { display: block; font-size: 12px; color: #666; margin-bottom: 3px; }
+  .props input, .props select, .props textarea {
+    width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; font-size: 13px;
+  }
+  .props textarea { resize: vertical; min-height: 50px; font-family: inherit; }
+  .props .row2 { display: flex; gap: 8px; }
+  .props .row2 .field { flex: 1; }
+  .props .area-readout {
+    background: var(--grey); border-radius: 5px; padding: 8px 10px; font-size: 13px;
+    display: flex; justify-content: space-between;
+  }
+  .props .area-readout b { color: var(--ember); }
+  .props button.danger {
+    width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #d33; color: #d33;
+    background: white; border-radius: 5px; cursor: pointer; font-size: 13px;
+  }
+  .win-head { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ember); margin: 14px 0 6px; font-weight: 600; }
+  .win-item { background: var(--grey); border-radius: 5px; padding: 7px 26px 7px 9px; font-size: 12px; margin-bottom: 6px; position: relative; cursor: pointer; }
+  .win-item:hover { background: #fdeadd; }
+  .win-item .del { position: absolute; top: 5px; right: 8px; color: #d33; cursor: pointer; font-weight: 700; font-size: 13px; }
+  .win-item .cpy { position: absolute; top: 5px; right: 28px; color: var(--ember); cursor: pointer; font-weight: 700; font-size: 13px; }
+  .win-item select.wwall { font-size: 11px; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; }
+  .wall-row .ori { width: 26px; color: #0b7285; font-weight: 600; }
+  #winPaste { width: 100%; padding: 7px; margin-top: 6px; border: 1px dashed var(--ember); color: var(--ember); background: white; border-radius: 5px; cursor: pointer; font-size: 13px; display: none; }
+  #winPaste:hover { background: #fff3ea; }
+  .win-item .sub { color: #777; margin-top: 2px; }
+  #winQuick { width: 100%; min-height: 86px; font-family: Consolas, monospace; font-size: 12px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 5px; resize: vertical; }
+  .wall-row { display: flex; gap: 6px; align-items: center; background: var(--grey); border-radius: 5px; padding: 5px 8px; margin-bottom: 4px; font-size: 12px; cursor: pointer; }
+  .wall-row.sel { outline: 2px solid var(--ember); }
+  .wall-row b { width: 16px; }
+  .wall-row .len { width: 56px; color: #555; padding: 3px 4px; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; }
+  .wall-row select { flex: 1; padding: 4px; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; }
+  .wall-row label { font-size: 11px; color: #666; display: flex; align-items: center; gap: 3px; cursor: pointer; }
+  .wall-row select { min-width: 84px; }
+  .wall-row select.auto { color: #999; font-style: italic; }
+  .wall-row input.wsel { width: auto; flex: 0 0 auto; margin: 0 2px 0 0; }
+  #wallAll { width: 100%; padding: 5px; font-size: 12px; border: 1px dashed var(--border); border-radius: 4px; color: #666; margin-top: 2px; }
+  #winAdd { width: 100%; padding: 7px; margin-top: 6px; border: 1px solid var(--ember); color: var(--ember); background: white; border-radius: 5px; cursor: pointer; font-size: 13px; }
+  #winAdd:hover { background: #fff3ea; }
+  .props button.danger:hover { background: #fdf0f0; }
+  .empty-note { padding: 10px 16px 16px; font-size: 13px; color: #999; border-bottom: 1px solid var(--border); }
+
+  .zone-list { flex: 1; }
+  .zone-list table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .zone-list th {
+    text-align: left; padding: 6px 8px; background: var(--grey);
+    font-size: 11px; text-transform: uppercase; color: #777;
+  }
+  .zone-list td { padding: 7px 8px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+  .zone-list tr:hover td { background: #fff7f0; }
+  .zone-list tr.sel td { background: #fdeadd; }
+  .zone-list .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+  .badge { font-size: 10px; font-weight: 700; border-radius: 8px; padding: 1px 6px; margin-left: 6px; color: white; vertical-align: 1px; }
+  .badge.ok { background: #27ae60; }
+  .badge.todo { background: #e6a23c; }
+  .totals { padding: 12px 16px; font-size: 13px; border-top: 1px solid var(--border); background: var(--grey); }
+  .totals b { color: var(--ember); }
+
+  .hint {
+    position: absolute; bottom: 12px; left: 12px; right: 12px; background: rgba(43,43,43,0.85); color: white;
+    font-size: 12px; padding: 7px 12px; border-radius: 6px; pointer-events: none; max-width: 720px;
+  }
+  .lenbox {
+    position: absolute; top: 12px; left: 12px; background: var(--ember); color: white;
+    font-size: 14px; font-weight: 600; padding: 8px 14px; border-radius: 6px; pointer-events: none;
+    display: none;
+  }
+  .sympal {
+    position: absolute; top: 12px; left: 12px; display: none; gap: 6px; align-items: center;
+    background: rgba(255,255,255,0.94); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px;
+  }
+  .sympal .symtitle { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+  .symchip {
+    border: 2px solid; border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700;
+    cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; background: white;
+  }
+  .symmenu {
+    border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 11px;
+    color: #555; cursor: pointer; user-select: none; -webkit-user-select: none; background: var(--grey);
+    touch-action: manipulation;
+  }
+  .symmenu.open { background: var(--ember); color: white; border-color: var(--ember); }
+  .symdrop {
+    position: absolute; top: 52px; left: 12px; display: none; gap: 6px; flex-wrap: wrap; max-width: 420px;
+    background: rgba(255,255,255,0.97); border: 1px solid var(--border); border-radius: 8px; padding: 8px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  }
+  select.autoF, input.autoF { color: #999 !important; font-style: italic; }
+  .win-item .drg { position: absolute; top: 5px; right: 48px; color: #999; cursor: grab; font-size: 13px; touch-action: none; }
+  #winTableBtn { width: 100%; padding: 7px; margin-top: 6px; border: 1px solid var(--border); color: #555; background: white; border-radius: 5px; cursor: pointer; font-size: 13px; }
+  #winTableBtn:hover { background: var(--grey); }
+  #winTable table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }
+  #winTable th { text-align: left; color: #777; font-size: 10px; text-transform: uppercase; padding: 2px; font-weight: 600; }
+  #winTable td { padding: 2px 2px 2px 0; }
+  #winTable input, #winTable select { width: 100%; padding: 4px 3px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; }
+  #winTable .delcell { color: #d33; cursor: pointer; font-weight: 700; text-align: center; width: 16px; }
+  #winTableAdd { width: 100%; padding: 5px; margin-top: 4px; border: 1px dashed var(--border); border-radius: 4px; color: #666; background: white; cursor: pointer; font-size: 12px; }
+  .numpad {
+    position: absolute; right: 12px; top: 12px; z-index: 30;
+    display: none; grid-template-columns: repeat(4, 56px); gap: 6px;
+    background: rgba(255,255,255,0.96); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  }
+  .numpad button {
+    height: 52px; font-size: 20px; font-weight: 600; border: 1px solid var(--border);
+    border-radius: 8px; background: white; cursor: pointer; touch-action: none;
+    user-select: none; -webkit-user-select: none;
+  }
+  .numpad button:active { background: var(--grey); }
+  .numpad button.wide { grid-column: span 2; }
+  .numpad button.go { background: var(--ember); color: white; border-color: var(--ember); }
+  .numpad .target { grid-column: span 4; font-size: 11px; color: #777; text-align: center; padding: 2px 0; }
+  /* big centered keypad for editing a wall length (tap a dimension on the plan) */
+  .lenpad { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.35); }
+  /* docked mode: float top-right over the global-defaults sidebar, leave the table behind tappable */
+  .lenpad.dock { background: transparent; pointer-events: none; align-items: flex-start; justify-content: flex-end; }
+  .lenpad.dock .lenpad-card { pointer-events: auto; margin: 10px 12px 0 0; width: 232px; }
+  .lenpad-card { background: white; border-radius: 14px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); width: 300px; max-width: 92vw; }
+  .lenpad-head { font-size: 12px; color: #777; text-align: center; margin-bottom: 6px; }
+  .lenpad-val { font-size: 30px; font-weight: 700; color: var(--ember); text-align: center; padding: 6px 0 12px; min-height: 24px; }
+  .lenpad-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .lenpad-keys button { height: 60px; font-size: 24px; font-weight: 600; border: 1px solid var(--border); border-radius: 10px; background: white; cursor: pointer; touch-action: manipulation; }
+  .lenpad-keys button:active { background: var(--grey); }
+  .lenpad-keys button.go { background: var(--ember); color: white; border-color: var(--ember); }
+  .lenpad-keys button.cancel { color: #d33; }
+  /* custom <select> picker for touch (iPad won't open native pickers) */
+  .pickerlist { background:white; border-radius:14px; padding:8px; width:300px; max-width:92vw; max-height:70vh; overflow-y:auto; box-shadow:0 8px 30px rgba(0,0,0,0.3); }
+  .pickerlist .ph { font-size:11px; color:#999; text-transform:uppercase; letter-spacing:0.4px; padding:6px 10px; }
+  .pickerlist button { display:block; width:100%; text-align:left; padding:14px 12px; font-size:15px; border:none; border-bottom:1px solid var(--border); background:white; cursor:pointer; touch-action:manipulation; }
+  .pickerlist button:last-child { border-bottom:none; }
+  .pickerlist button.sel { color:var(--ember); font-weight:700; }
+  .floatpop {
+    position: absolute; background: white; border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2); padding: 10px 12px; z-index: 20; width: 280px; font-size: 12px;
+  }
+  .floatpop h3 { font-size: 11px; color: var(--ember); margin: 0 14px 6px 0; text-transform: uppercase; letter-spacing: 0.4px; }
+  .floatpop .x { position: absolute; top: 6px; right: 10px; cursor: pointer; color: #999; font-weight: 700; font-size: 14px; }
+  .floatpop table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .floatpop th { text-align: left; color: #777; font-size: 10px; text-transform: uppercase; padding: 2px; font-weight: 600; }
+  .floatpop td { padding: 2px 2px 2px 0; }
+  .floatpop input, .floatpop textarea { width: 100%; padding: 4px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; font-family: inherit; }
+  .floatpop .delcell { color: #d33; cursor: pointer; font-weight: 700; text-align: center; width: 16px; }
+  .floatpop input.kpactive { outline: 2px solid var(--ember); background: #fff7f0; }
+  .glazchip { display: inline-flex; align-items: center; gap: 5px; background: #f0f0f0; border: 1px solid var(--border); border-radius: 12px; padding: 3px 9px; margin: 2px; font-size: 11px; }
+  .glazchip .gx { cursor: pointer; color: #d33; font-weight: 700; touch-action: manipulation; }
+  /* print plan: just the plan image + a per-zone info table */
+  #printArea { display: none; }
+  #printArea h1 { font-size: 18px; color: var(--ember); margin: 0 0 8px; }
+  #printArea img { display: block; max-width: 100%; border: 1px solid #ccc; margin-bottom: 12px; }
+  #printArea table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  #printArea th, #printArea td { border: 1px solid #999; padding: 4px 6px; text-align: left; vertical-align: top; }
+  #printArea th { background: #f0f0f0; }
+  @media print {
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block !important; }
+    @page { margin: 12mm; }
+  }
+  .floatpop .rowbtn { width: 100%; padding: 5px; margin-top: 6px; border: 1px dashed var(--border); border-radius: 4px; color: #666; background: white; cursor: pointer; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>EmberSurvey</h1>
+  <span class="sub">Commercial EPC site survey &middot; Ember Energy NI</span>
+  <input id="jobName" placeholder="Job / property address…">
+</header>
+
+<div class="toolbar">
+  <button id="modeRect" title="Quick rectangle: click-drag">&#9645; Rectangle</button>
+  <button id="modePoly" class="active" title="Click corners at any angle; type a length in metres for exact walls">&#9998; Walls</button>
+  <button id="modeSelect" title="Click a zone to edit it; drag to move">&#10548; Select / move</button>
+  <div class="sep"></div>
+  <span id="wallTools">
+    <label>Wall (m)</label>
+    <input type="number" id="lenInput" step="0.01" min="0" inputmode="decimal" placeholder="e.g. 4.5">
+    <label title="Exact bearing for the next wall — same convention as the on-screen ° readout. Cleared after each wall.">@</label>
+    <input type="number" id="angInput" step="1" min="0" max="359" inputmode="numeric" placeholder="°" style="width:52px;">
+    <button id="btnPlaceWall" class="go" title="Place the next corner at this exact distance">Place</button>
+    <button id="btnCloseRoom" class="go" title="Finish the room using the corners placed so far (needs 3+)">&#10003; Finish room</button>
+    <div class="sep"></div>
+  </span>
+  <label title="Floor for new zones — names them z0/01, z0/02 … (ground = 0); set to 1 for first floor → z1/01">Floor</label>
+  <input type="number" id="floor" value="0" step="1" min="0" style="width:46px;">
+  <div class="sep"></div>
+  <label>Scale: 1 grid square =</label>
+  <input type="number" id="scale" value="0.5" step="0.25" min="0.1"> <label>m</label>
+  <div class="sep"></div>
+  <label title="Compass bearing of the TOP of the screen — 0 = plan drawn with North up. Window orientations follow this.">North</label>
+  <input type="number" id="north" value="0" step="45" min="0" max="359"> <label>&deg;</label>
+  <div class="sep"></div>
+  <button id="btnPad" title="Big number pad for finger entry on site — feeds whichever number box was last tapped">123</button>
+  <div class="sep"></div>
+  <button id="btnZoomOut" title="Zoom out (or mouse wheel)">&minus;</button>
+  <button id="btnZoomIn" title="Zoom in (or mouse wheel)">+</button>
+  <button id="btnZoom100" title="Reset zoom to 100% — middle-button drag pans">1:1</button>
+  <div class="sep"></div>
+  <button id="btnUndo" title="Undo the last change (Ctrl+Z)">&#8630; Undo</button>
+  <div class="sep"></div>
+  <button id="btnSave">&#128190; Save</button>
+  <button id="btnLoad">&#128194; Load</button>
+  <button id="btnCsv">&#11015; Export CSV</button>
+  <button id="btnJson">&#11015; Export JSON</button>
+  <button id="btnDxf" title="Export the floor plan as a DXF (CAD) file in real metres — imports into DesignBuilder">&#11015; Export DXF</button>
+  <button id="btnPrint">&#128424; Print plan</button>
+  <button id="btnClear" style="margin-left:auto; color:#d33;">Clear all</button>
+</div>
+
+<div class="main">
+  <div class="canvas-wrap" id="wrap">
+    <canvas id="cv"></canvas>
+    <div class="lenbox" id="lenbox"></div>
+    <div class="sympal" id="sympal">
+      <span class="symtitle">drag &rarr;</span>
+      <div class="symchip" data-code="EF" style="border-color:#c0392b;color:#c0392b" title="Extract fan — drag into a zone">FAN</div>
+      <div class="symchip" data-code="DOOR" style="border-color:#8d5524;color:#8d5524" title="Door opening — drag onto a wall">Door</div>
+      <div class="symchip" data-code="WIN" style="border-color:#0b7285;color:#0b7285" title="Window — drag onto an EXTERNAL wall, click it later to enter dimensions">Win</div>
+      <div class="symchip" data-code="NOTE" style="border-color:#d35400;color:#d35400" title="Text note with arrow — drag anywhere on the plan">Note</div>
+      <div class="symchip" data-code="WADJ" style="border-color:#2b2b2b;color:#2b2b2b" title="Adjoining building — drag onto a wall to hatch it (your hand-drawing convention)">Adjoin</div>
+      <div class="symmenu" data-menu="light" title="Light types — open, then drag a chip into a zone (also records the zone's lighting)">Lights &#9662;</div>
+      <div class="symmenu" data-menu="heat" title="Heating systems — open, then drag a chip into a zone (also records the zone's heating)">Heating &#9662;</div>
+      <div class="symmenu" data-menu="hws" title="Water heating — open, then drag a chip into a zone (also records the zone's hot water)">Hot water &#9662;</div>
+      <div class="symmenu" data-menu="intwall" title="Internal wall construction — open, then drag a chip ONTO a wall to set its type">Int wall &#9662;</div>
+      <div class="symmenu" data-menu="extwall" title="External wall construction — open, then drag a chip ONTO a wall to set its type">Ext wall &#9662;</div>
+      <div class="symmenu" data-menu="wintypes" title="Window tags — each dimensioned window size becomes a draggable tag; drop it on an external wall to place that window again">Windows &#9662;</div>
+    </div>
+    <div class="symdrop" id="symdrop"></div>
+    <div class="floatpop" id="floatPop" style="display:none;"></div>
+    <div class="numpad" id="numpad">
+      <div class="target" id="numpadTarget">&rarr; Wall (m)</div>
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button><button data-k="back">&#9003;</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button><button data-k="clear">C</button>
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k=".">.</button>
+      <button data-k="0" class="wide">0</button><button data-k="enter" class="wide go">&#10003; Enter</button>
+    </div>
+    <div class="hint" id="hint"></div>
+  </div>
+  <div class="lenpad" id="pickerModal"><div class="pickerlist" id="pickerList"></div></div>
+  <div class="lenpad" id="confirmModal">
+    <div class="lenpad-card">
+      <div class="lenpad-head" id="confirmMsg" style="font-size:14px;color:#2b2b2b;">Are you sure?</div>
+      <div style="display:flex; gap:10px; margin-top:14px;">
+        <button id="confirmNo" style="flex:1; height:48px; font-size:15px; border:1px solid var(--border); border-radius:10px; background:white; cursor:pointer; touch-action:manipulation;">Cancel</button>
+        <button id="confirmYes" style="flex:1; height:48px; font-size:15px; border:1px solid #d33; border-radius:10px; background:#d33; color:white; cursor:pointer; touch-action:manipulation;">Delete</button>
+      </div>
+    </div>
+  </div>
+  <div class="lenpad" id="lenpad">
+    <div class="lenpad-card">
+      <div class="lenpad-head" id="lenpadHead">Wall length (m)</div>
+      <div class="lenpad-val" id="lenpadVal">0</div>
+      <div class="lenpad-keys">
+        <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+        <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+        <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+        <button data-k=".">.</button><button data-k="0">0</button><button data-k="back">&#9003;</button>
+        <button data-k="cancel" class="cancel">Cancel</button><button data-k="clear">C</button><button data-k="enter" class="go">&#10003;</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <h2>Global defaults <span style="color:#777;font-weight:400;text-transform:none;font-size:11px;">— every zone inherits these (grey italic); amend any zone to override</span></h2>
+    <div class="props">
+      <div class="row2">
+        <div class="field"><label>Lighting</label>
+          <select id="gLighting">
+            <option value="">— none —</option>
+            <option>LED</option>
+            <option>T5 fluorescent</option>
+            <option>T8 fluorescent</option>
+            <option>T12 fluorescent</option>
+            <option>Compact fluorescent</option>
+            <option>Tungsten / halogen</option>
+            <option>Metal halide / HID</option>
+            <option>Mixed</option>
+          </select>
+        </div>
+        <div class="field"><label>Heating</label>
+          <select id="gHeating">
+            <option value="">— none —</option>
+            <option>Elec Fan H</option>
+            <option>Elec H</option>
+            <option>Rads</option>
+            <option>Underfloor</option>
+            <option>UnitHeater</option>
+            <option>RadiantHeater</option>
+            <option>Unheated</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Zone height (m)</label><input id="gHeight" type="number" step="0.1" inputmode="decimal" placeholder="e.g. 2.7" title="New zones inherit this room height; editable per zone"></div>
+        <div class="field"></div>
+      </div>
+    </div>
+    <h2>Glazing types <span style="color:#777;font-weight:400;text-transform:none;font-size:11px;">— pick these in the window table</span></h2>
+    <div class="props">
+      <div class="field"><label>Add a glazing/frame code</label>
+        <div style="display:flex;gap:6px;">
+          <input id="glazIn" placeholder="e.g. DGPVC 4-16-4" style="flex:1;">
+          <button id="glazAdd" style="padding:0 12px;border:1px solid var(--ember);background:var(--ember);color:white;border-radius:5px;cursor:pointer;touch-action:manipulation;">Add</button>
+        </div>
+      </div>
+      <div id="glazList" style="margin-top:2px;"></div>
+    </div>
+    <h2>Zone properties</h2>
+    <div class="props" id="props" style="display:none;">
+      <div class="field"><label>Zone name</label><input id="pName"></div>
+      <div class="row2">
+        <div class="field"><label>Activity (NCM)</label>
+          <select id="pActivity">
+            <option value="">— record —</option>
+            <option>Office — open plan</option>
+            <option>Office — cellular</option>
+            <option>Retail — sales area</option>
+            <option>Storage / warehouse</option>
+            <option>Workshop / light industrial</option>
+            <option>Circulation / corridor</option>
+            <option>Toilet</option>
+            <option>Kitchen / tea point</option>
+            <option>Plant room</option>
+            <option>Reception</option>
+            <option>Meeting room</option>
+            <option>Server room</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field"><label>Room height (m)</label><input id="pHeight" type="number" step="0.1" inputmode="decimal" placeholder="record"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Heating</label>
+          <select id="pHeating">
+            <option value="">— record —</option>
+            <option>Elec Fan H</option>
+            <option>Elec H</option>
+            <option>Rads</option>
+            <option>Underfloor</option>
+            <option>UnitHeater</option>
+            <option>RadiantHeater</option>
+            <option>Unheated</option>
+          </select>
+        </div>
+        <div class="field"><label>Cooling</label>
+          <select id="pCooling">
+            <option value="">— record —</option>
+            <option>None</option>
+            <option>Split / multi-split</option>
+            <option>VRF</option>
+            <option>Chilled water FCU</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Lighting</label>
+          <select id="pLighting">
+            <option value="">— record —</option>
+            <option>LED</option>
+            <option>T5 fluorescent</option>
+            <option>T8 fluorescent</option>
+            <option>T12 fluorescent</option>
+            <option>Compact fluorescent</option>
+            <option>Tungsten / halogen</option>
+            <option>Metal halide / HID</option>
+            <option>Mixed</option>
+          </select>
+        </div>
+        <div class="field"><label>Ventilation</label>
+          <select id="pVent">
+            <option value="">— record —</option>
+            <option>Natural</option>
+            <option>Mechanical extract</option>
+            <option>Mechanical supply + extract</option>
+            <option>Air conditioned</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Hot water (if any)</label>
+        <select id="pHws">
+          <option value="">— record —</option>
+          <option>From main boiler</option>
+          <option>ElecInstant</option>
+          <option>10L WH</option>
+          <option>15L WH</option>
+          <option>Hot Water Cyl</option>
+          <option>Gas WH</option>
+          <option>Gas Combi</option>
+          <option>None</option>
+        </select>
+      </div>
+      <div class="field"><label>Site notes</label><textarea id="pNotes" placeholder="Glazing, condition, plant details…"></textarea></div>
+      <div class="area-readout">
+        <span>Floor area</span><b id="pArea">—</b>
+      </div>
+      <div class="win-head">Walls <span id="wallSummary" style="color:#777;font-weight:400;text-transform:none;"></span></div>
+      <div id="wallList"></div>
+      <select id="wallAll">
+        <option value="">Set all walls to…</option>
+        <option>External — cavity</option>
+        <option>External — solid</option>
+        <option>External — metal clad</option>
+        <option>Internal — stud</option>
+        <option>Internal — solid</option>
+      </select>
+      <div class="win-head">Doors <span id="doorSummary" style="color:#777;font-weight:400;text-transform:none;"></span></div>
+      <div id="doorList"></div>
+      <div class="win-head">Windows <span id="winSummary" style="color:#777;font-weight:400;text-transform:none;"></span>
+        <label style="float:right;color:#666;font-weight:400;text-transform:none;cursor:pointer;"><input type="checkbox" id="winNone"> no windows</label>
+      </div>
+      <div id="winList"></div>
+      <textarea id="winQuick" placeholder="Quick add — your site shorthand:&#10;1.53 2.45&#10;p1 0.83 x 1.93&#10;p2 0.88 x 1.23 x9   (x9 = 9 of)&#10;DGPVC 4-19-4&#10;&#10;(blank line between windows)"></textarea>
+      <button id="winAdd">+ Add window(s)</button>
+      <button id="winTableBtn">&#8862; Table entry</button>
+      <div id="winTable" style="display:none;"></div>
+      <button id="winPaste"></button>
+      <button class="danger" id="pDelete" style="margin-top:12px;">Delete zone</button>
+    </div>
+    <div class="empty-note" id="emptyNote">No zone selected. Draw one on the grid, or click an existing zone in Select mode.</div>
+
+    <h2>Zone schedule</h2>
+    <div class="zone-list">
+      <table>
+        <thead><tr><th>Zone</th><th>Activity</th><th style="text-align:right">m²</th><th></th></tr></thead>
+        <tbody id="zoneRows"></tbody>
+      </table>
+    </div>
+    <div class="totals" id="totals">Zones: <b>0</b> &nbsp;&middot;&nbsp; Total floor area: <b>0.0 m²</b></div>
+  </div>
+</div>
+
+<div id="printArea"></div>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const wrap = document.getElementById('wrap');
+const GRID = 24; // px per grid square
+const COLOURS = ['#E76C13','#2980b9','#27ae60','#8e44ad','#c0392b','#16a085','#d35400','#2c3e50'];
+const ANGLE_SNAP = 15 * Math.PI / 180;   // walls snap to 15° increments (Shift = free)
+const CLOSE_RADIUS = 12;                 // px — tap this close to the FIRST corner to close (tight, so a small room's last corner isn't eaten — use "✓ Finish room" otherwise)
+
+// wall construction types — edge i runs pts[i] -> pts[i+1]; zone.walls[i] = {type, party}
+const WALL_TYPES = ['', 'External — cavity', 'External — solid', 'External — metal clad', 'Internal — stud', 'Internal — solid'];
+const WALL_COLOURS = {
+  'Internal — stud': '#999', 'Internal — solid': '#555',
+  'External — cavity': '#2980b9', 'External — solid': '#8e44ad', 'External — metal clad': '#16a085'
+};
+function isInternalWall(w) { return !!(w && w.type && w.type.startsWith('Internal')); }
+let selWall = null;    // index of the highlighted wall of the selected zone (sidebar click)
+
+let zones = [];        // {id, pts:[{x,y}...], walls:[{type,party}...], name, activity, height, heating, cooling, lighting, vent, hws, notes}
+let mode = 'poly';     // 'rect' | 'poly' | 'select'
+let rectDraw = null;   // {x0,y0,x1,y1}
+let poly = null;       // {pts:[{x,y}...]} while drawing walls
+let mouse = {x:0, y:0};
+let lenBuf = '';       // typed length in metres for the next wall
+let shiftHeld = false;
+let selectedId = null;
+let draggingVertex = null;  // {id, vi} — corner of the selected zone being reshaped
+let draggingSymbol = null;  // {z, i} — placed symbol being moved (drop outside any zone = delete)
+let draggingWall = null;    // {id, i, n, startX, startY, orig, candidates, moved} — wall pushed in/out; click (no move) on an external wall opens the window-dimensions popup
+let draggingDoor = null;    // {z, i, cx, cy, sx, sy, moved} — door re-homed by drag; click opens its dimensions popup
+let draggingNote = null;    // {i, part:'box'|'tip', moved} — annotation being moved
+let draggingWinPos = null;  // {z, wi, sx, sy, moved} — placed window slid along its wall; tap (no move) opens its dimensions
+let draggingZoneLabel = null; // {z, sx, sy, ox, oy} — zone number/area/height cluster being repositioned
+let dragSym = null;    // {code, cx, cy} — symbol chip dragged in from the palette
+let dragWin = null;    // {zid, idx, cx, cy} — window card dragged onto a wall
+let notes = [];        // plan-level annotations: {x, y (arrow tip), tx, ty (text box centre), text}
+let winHits = [];      // world positions of drawn window symbols, rebuilt every render — click one to open its wall's dimension table
+let dimHits = [];      // world positions of the selected zone's length labels — tap to open the big length keypad
+let printDims = false;  // print snapshot: draw wall dimensions on EVERY zone, not just the selected one
+let heightHits = [];   // per-zone editable height chip rects — tap to set that zone's room height
+let labelHits = [];    // per-zone number-label rects — drag to move the label cluster (number+area+height)
+let nextId = 1;
+
+// ---------- view transform (zoom + pan) ----------
+// world -> screen: s = w * view.k + view.o. Zones/notes store WORLD coords; pointer input is
+// converted to world at the handlers; fixed-size hit tolerances divide by view.k.
+let view = { k: 1, ox: 0, oy: 0 };
+let panning = null;   // {sx, sy, ox, oy} — middle-button drag
+const ptrs = new Map();   // active pointers on the canvas — two fingers = pinch zoom/pan
+let pinch = null;         // {d0, mid0, k0, ox0, oy0}
+let downAddedCorner = false;   // walls-mode: the press placed a corner (popped if it turns into a pinch)
+const toWX = sx => (sx - view.ox) / view.k;
+const toWY = sy => (sy - view.oy) / view.k;
+const toSX = wx => wx * view.k + view.ox;
+const toSY = wy => wy * view.k + view.oy;
+function onScreenW(wx, wy) {
+  const sx = toSX(wx), sy = toSY(wy);
+  return sx >= 0 && sy >= 0 && sx <= cv.width && sy <= cv.height;
+}
+function zoomAt(sx, sy, f) {
+  const wx = toWX(sx), wy = toWY(sy);
+  view.k = Math.min(4, Math.max(0.2, view.k * f));
+  view.ox = sx - wx * view.k;
+  view.oy = sy - wy * view.k;
+  render();
+}
+
+// global defaults — every zone inherits these into lighting/heating/height unless amended
+let globals = { lighting: '', heating: '', height: '' };
+// project glazing/frame codes (e.g. "DGPVC 4-16-4") — managed in the sidebar, picked in the window table
+let glazingCodes = [];
+
+// fitting symbols Shane marks on his paper plans (drag from the palette in Select mode).
+// Chips with a .set ALSO record the zone's survey field when dropped into a zone.
+const SYM = {
+  EF:  { label: 'FAN',  col: '#c0392b', name: 'Extract fan' },
+  // lights
+  LED: { label: 'LED',  col: '#16a085', name: 'LED lighting',                   set: { field: 'lighting', value: 'LED' } },
+  T5:  { label: 'T5',   col: '#2980b9', name: 'T5 fluorescent',                 set: { field: 'lighting', value: 'T5 fluorescent' } },
+  T8:  { label: 'T8HF', col: '#2980b9', name: 'T8 high-frequency fluorescent',  set: { field: 'lighting', value: 'T8 fluorescent' } },
+  T12: { label: 'T12',  col: '#2980b9', name: 'T12 fluorescent',                set: { field: 'lighting', value: 'T12 fluorescent' } },
+  CFL: { label: 'CFL',  col: '#27ae60', name: 'Compact fluorescent',            set: { field: 'lighting', value: 'Compact fluorescent' } },
+  TU:  { label: 'Tung', col: '#e6a23c', name: 'Tungsten bulb',                  set: { field: 'lighting', value: 'Tungsten / halogen' } },
+  MH:  { label: 'MH',   col: '#8e44ad', name: 'Metal halide / HID',             set: { field: 'lighting', value: 'Metal halide / HID' } },
+  // heating systems
+  EFH: { label: 'EFanH',    col: '#c0392b', name: 'Electric fan heater',  set: { field: 'heating', value: 'Elec Fan H' } },
+  EH:  { label: 'ElecH',    col: '#e6a23c', name: 'Electric heater',      set: { field: 'heating', value: 'Elec H' } },
+  RAD: { label: 'Rads',     col: '#d35400', name: 'Radiators',            set: { field: 'heating', value: 'Rads' } },
+  UFL: { label: 'UFloor',   col: '#16a085', name: 'Underfloor heating',   set: { field: 'heating', value: 'Underfloor' } },
+  UNH: { label: 'UnitH',    col: '#2c3e50', name: 'Unit heater',          set: { field: 'heating', value: 'UnitHeater' } },
+  RDH: { label: 'Radiant',  col: '#8e44ad', name: 'Radiant heater',       set: { field: 'heating', value: 'RadiantHeater' } },
+  // water heating ('note: true' types prompt for a model number, stored on the placed symbol)
+  HWB: { label: 'HW-Boiler', col: '#d35400', name: 'HW from main boiler',  set: { field: 'hws', value: 'From main boiler' } },
+  HWEI:{ label: 'ElecInst',  col: '#2980b9', name: 'Electric instant',     set: { field: 'hws', value: 'ElecInstant' } },
+  HW10:{ label: '10L',       col: '#2980b9', name: '10L water heater',      set: { field: 'hws', value: '10L WH' } },
+  HW15:{ label: '15L',       col: '#27ae60', name: '15L water heater',      set: { field: 'hws', value: '15L WH' } },
+  HWCYL:{ label: 'HW Cyl',   col: '#16a085', name: 'Hot water cylinder',    set: { field: 'hws', value: 'Hot Water Cyl' }, note: true },
+  HWGAS:{ label: 'GasWH',    col: '#d35400', name: 'Gas water heater',      set: { field: 'hws', value: 'Gas WH' }, note: true },
+  HWCMB:{ label: 'Combi',    col: '#e67e22', name: 'Gas combi',             set: { field: 'hws', value: 'Gas Combi' }, note: true },
+  // wall construction chips — drop ONTO A WALL to set its type (no symbol placed)
+  WST: { label: 'Stud',       col: '#999',    name: 'Internal — stud',       wallType: 'Internal — stud' },
+  WSO: { label: 'Int solid',  col: '#555',    name: 'Internal — solid',      wallType: 'Internal — solid' },
+  WCA: { label: 'Cavity',     col: '#2980b9', name: 'External — cavity',     wallType: 'External — cavity' },
+  WES: { label: 'Ext solid',  col: '#8e44ad', name: 'External — solid',      wallType: 'External — solid' },
+  WMC: { label: 'Metal clad', col: '#16a085', name: 'External — metal clad', wallType: 'External — metal clad' },
+  WADJ:{ label: 'Adjoin',     col: '#2b2b2b', name: 'Adjoining building',    wallParty: true },
+  // wall features + annotation
+  DOOR:{ label: 'Door', col: '#8d5524', name: 'Door opening' },   // wall feature, not a zone chip
+  WIN: { label: 'Win',  col: '#0b7285', name: 'Window' },         // wall feature — external walls only
+  NOTE:{ label: 'Note', col: '#d35400', name: 'Text note' }       // plan annotation with arrow
+};
+const SYM_MENUS = {
+  light:   ['LED', 'T5', 'T8', 'T12', 'CFL', 'TU', 'MH'],
+  heat:    ['EFH', 'EH', 'RAD', 'UFL', 'UNH', 'RDH'],
+  hws:     ['HWB', 'HWEI', 'HW10', 'HW15', 'HWCYL', 'HWGAS', 'HWCMB'],
+  intwall: ['WST', 'WSO'],
+  extwall: ['WCA', 'WES', 'WMC']
+};
+
+// apply global defaults to every zone field still flagged auto (never touches manual values)
+function applyGlobals() {
+  zones.forEach(z => {
+    z.autoF = z.autoF || {};
+    if (z.autoF.lighting === undefined) z.autoF.lighting = !z.lighting;
+    if (z.autoF.heating  === undefined) z.autoF.heating  = !z.heating;
+    if (z.autoF.height   === undefined) z.autoF.height   = !z.height;
+    if (z.autoF.lighting) z.lighting = globals.lighting || '';
+    if (z.autoF.heating)  z.heating  = globals.heating  || '';
+    if (z.autoF.height)   z.height   = parseFloat(globals.height) || 0;
+    syncFittingSymbols(z);   // keep the plan showing the zone's lighting + heating
+  });
+}
+// map a recorded survey value back to its palette chip code (to auto-place the symbol on the plan)
+function symCodeForField(field, value) {
+  if (!value) return null;
+  for (const code in SYM) {
+    const s = SYM[code];
+    if (s.set && s.set.field === field && s.set.value === value) return code;
+  }
+  return null;
+}
+// keep the plan in sync with the zone's recorded lighting + heating — exactly one chip each.
+// auto chips (placed:false) stack just under the zone name; a chip the surveyor dragged keeps
+// its position (placed:true, or legacy/loaded symbols with no flag).
+function syncFittingSymbols(z) {
+  z.symbols = z.symbols || [];
+  const c = centroid(z.pts);
+  [['lighting', -26], ['heating', -50]].forEach(([field, dy]) => {   // stacked ABOVE the zone name (lighting nearest), 6px gap
+    const isField = sm => { const ss = SYM[sm.code]; return ss && ss.set && ss.set.field === field; };
+    const prev = z.symbols.find(isField);
+    z.symbols = z.symbols.filter(sm => !isField(sm));
+    const code = symCodeForField(field, z[field]);
+    if (code) {
+      const keep = prev && prev.placed !== false;
+      z.symbols.push(keep
+        ? { code, x: prev.x, y: prev.y, placed: prev.placed }
+        : { code, x: c.x, y: c.y + dy, placed: false });
+    }
+  });
+}
+// new windows with no glazing code pick up the global window type
+function applyWinCode(w) {
+  if (!w.code && globals.winCode) w.code = globals.winCode;
+}
+
+// ---------- units ----------
+function scaleM() { return parseFloat(document.getElementById('scale').value) || 0.5; }
+function pxToM(px) { return px * scaleM() / GRID; }
+function mToPx(m) { return m * GRID / scaleM(); }
+function snap(v) { return Math.round(v / GRID) * GRID; }
+
+function shoelace(pts) {
+  let s = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    s += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(s) / 2;
+}
+function zoneAreaM2(z) { const k = scaleM() / GRID; return shoelace(z.pts) * k * k; }
+function centroid(pts) {
+  let x = 0, y = 0;
+  pts.forEach(p => { x += p.x; y += p.y; });
+  return { x: x / pts.length, y: y / pts.length };
+}
+
+// ---------- canvas ----------
+function resize() {
+  cv.width = wrap.clientWidth;
+  cv.height = wrap.clientHeight;
+  render();
+}
+window.addEventListener('resize', resize);
+
+function render() {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  winHits = []; dimHits = []; heightHits = []; labelHits = [];
+  ctx.save();
+  ctx.translate(view.ox, view.oy);
+  ctx.scale(view.k, view.k);
+  // grid — covers the visible WORLD rectangle at any zoom/pan
+  const wx0 = toWX(0), wy0 = toWY(0), wx1 = toWX(cv.width), wy1 = toWY(cv.height);
+  ctx.strokeStyle = '#eee';
+  ctx.lineWidth = 1 / view.k;
+  for (let x = Math.floor(wx0 / GRID) * GRID; x <= wx1; x += GRID) { ctx.beginPath(); ctx.moveTo(x, wy0); ctx.lineTo(x, wy1); ctx.stroke(); }
+  for (let y = Math.floor(wy0 / GRID) * GRID; y <= wy1; y += GRID) { ctx.beginPath(); ctx.moveTo(wx0, y); ctx.lineTo(wx1, y); ctx.stroke(); }
+
+  // zones
+  zones.forEach((z, i) => {
+    const col = COLOURS[i % COLOURS.length];
+    const sel = z.id === selectedId;
+    ctx.beginPath();
+    z.pts.forEach((p, j) => j === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.closePath();
+    ctx.fillStyle = col + '22';
+    ctx.fill();
+    ctx.strokeStyle = sel ? '#2b2b2b' : col;
+    ctx.lineWidth = sel ? 2.5 : 1.5;
+    ctx.stroke();
+
+    const c = centroid(z.pts);
+    const off = z.labelOff || { dx: 0, dy: 0 };   // cluster (number + area + height chip) can be dragged off-centroid
+    const lx = c.x + off.dx, ly = c.y + off.dy;
+    ctx.fillStyle = '#2b2b2b';
+    ctx.font = '600 12px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(z.name, lx, ly - 4);
+    labelHits.push({ x: lx, y: ly - 4, w: ctx.measureText(z.name).width, z });   // drag handle for the cluster
+    ctx.font = '11px Segoe UI, Arial';
+    ctx.fillStyle = '#777';
+    ctx.fillText(zoneAreaM2(z).toFixed(1) + ' m²' + (z.activity ? ' · ' + z.activity : ''), lx, ly + 11);
+    ctx.textAlign = 'left';
+
+    // editable zone-height chip (ember = tappable) — tap it to set the room height
+    {
+      ctx.font = '700 10px Segoe UI, Arial';
+      const hLabel = '↕ ' + ((z.height && z.height > 0) ? z.height + ' m' : 'set h');
+      const hw = ctx.measureText(hLabel).width + 12;
+      const hx = lx, hy = ly + 26;
+      ctx.fillStyle = 'white'; ctx.strokeStyle = '#E76C13'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(hx - hw / 2, hy - 9, hw, 18, 5); else ctx.rect(hx - hw / 2, hy - 9, hw, 18);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#E76C13'; ctx.textAlign = 'center';
+      ctx.fillText(hLabel, hx, hy + 3.5);
+      ctx.textAlign = 'left';
+      heightHits.push({ x: hx, y: hy, w: hw, z });
+    }
+
+    // typed walls: colour-coded overlay + party-wall hatching (always shown, like Shane's paper marks)
+    const wl = z.walls || [];
+    for (let e = 0; e < z.pts.length; e++) {
+      const w = wl[e];
+      if (!w) continue;
+      const a = z.pts[e], b = z.pts[(e + 1) % z.pts.length];
+      if (w.type) {
+        ctx.strokeStyle = WALL_COLOURS[w.type] || col;
+        ctx.lineWidth = w.type.startsWith('Internal') ? 2.5 : 6;   // external walls read clearly thicker
+        if (w.type === 'Internal — stud') ctx.setLineDash([7, 4]);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      if (w.party) drawPartyHatch(a, b);
+    }
+    if (sel && selWall != null && z.pts[selWall]) {
+      const a = z.pts[selWall], b = z.pts[(selWall + 1) % z.pts.length];
+      ctx.strokeStyle = '#E76C13'; ctx.lineWidth = 7; ctx.globalAlpha = 0.45;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // window symbols: placed windows drawn on their wall, spaced evenly, at true scaled width
+    const byWall = {};
+    (z.windows || []).forEach(win => {
+      if (win.wall != null && z.pts[win.wall] !== undefined) (byWall[win.wall] = byWall[win.wall] || []).push(win);
+    });
+    Object.entries(byWall).forEach(([ei, list]) => {
+      const e = +ei;
+      const a = z.pts[e], b = z.pts[(e + 1) % z.pts.length];
+      const wlen = Math.hypot(b.x - a.x, b.y - a.y);
+      if (!wlen) return;
+      const ux = (b.x - a.x) / wlen, uy = (b.y - a.y) / wlen;
+      const on = outwardNormal(z, e);   // label sits OUTSIDE the building
+      list.forEach((win, k) => {
+        // dragged-on windows carry an exact position along the wall; others space out evenly
+        const t = (win.t != null) ? win.t : (k + 1) / (list.length + 1);
+        const cxp = a.x + ux * wlen * t, cyp = a.y + uy * wlen * t;
+        const half = Math.min(win.w ? mToPx(win.w) / 2 : 7, wlen * 0.45 / list.length);
+        ctx.strokeStyle = '#0b7285'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(cxp - ux * half, cyp - uy * half); ctx.lineTo(cxp + ux * half, cyp + uy * half); ctx.stroke();
+        ctx.strokeStyle = 'white'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(cxp - ux * half, cyp - uy * half); ctx.lineTo(cxp + ux * half, cyp + uy * half); ctx.stroke();
+        // red "!" until dimensions are in (W1! -> W1); label offset OUTWARD; symbol clickable
+        // left/right (vertical) walls: rotate the label to run parallel with the window, outside the building
+        const wAng = Math.abs(uy) > Math.abs(ux) ? Math.atan2(uy, ux) : 0;
+        labelBang((win.label || 'W?') + (win.code ? ' ' + win.code : ''), cxp + on.nx * 20, cyp + on.ny * 20, '#0b7285', !winValid(win), wAng);
+        winHits.push({ z, win, x: cxp, y: cyp });
+      });
+    });
+
+    // fitting symbols (extract fan, lighting types) — dragged in from the palette
+    (z.symbols || []).forEach(s => {
+      drawSymbolChip(s.code, s.x, s.y);
+      if (s.note) { ctx.font = '600 9px Segoe UI, Arial'; ctx.fillStyle = '#555'; ctx.textAlign = 'center'; ctx.fillText(s.note, s.x, s.y + 18); ctx.textAlign = 'left'; }
+    });
+
+    // door openings on walls — red "!" until both dimensions are in (internal doors need none)
+    (z.doors || []).forEach(d => {
+      const p = doorPos(z, d);
+      if (!p) return;
+      drawDoorBar(p.x, p.y, p.ux, p.uy, d.w);
+      const dn = outwardNormal(z, d.wall);   // label OUTSIDE the building, same as the windows
+      labelBang(d.label || 'D?', p.x + dn.nx * 14, p.y + dn.ny * 14, '#8d5524', !doorIsInternal(z, d) && !(d.w && d.h));
+    });
+
+    // selected zone: corner handles (draggable in Select mode). Print snapshot draws no handles.
+    if (sel) {
+      const grabbable = mode === 'select';
+      z.pts.forEach((p, vi) => {
+        const hot = draggingVertex && draggingVertex.id === z.id && draggingVertex.vi === vi;
+        ctx.fillStyle = hot ? '#E76C13' : 'white';
+        ctx.strokeStyle = grabbable ? '#E76C13' : '#2b2b2b';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(p.x, p.y, grabbable ? 5.5 : 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      });
+    }
+    // wall dimensions: the selected zone on screen, OR every zone when building the print plan
+    if (sel || printDims) drawDims(z.pts, true, z);
+  });
+
+  // rectangle rubber band
+  if (rectDraw) {
+    const r = normRect(rectDraw);
+    ctx.fillStyle = 'rgba(231,108,19,0.12)';
+    ctx.strokeStyle = '#E76C13';
+    ctx.setLineDash([5,4]);
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#E76C13';
+    ctx.font = '600 12px Segoe UI, Arial';
+    ctx.fillText(pxToM(r.w).toFixed(2) + ' × ' + pxToM(r.h).toFixed(2) + ' m  =  ' + (pxToM(r.w)*pxToM(r.h)).toFixed(1) + ' m²', r.x + 6, r.y - 8);
+  }
+
+  // walls-in-progress
+  if (poly) {
+    ctx.strokeStyle = '#E76C13';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    poly.pts.forEach((p, j) => j === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.stroke();
+
+    // placed corners — first corner shows a green close-ring when the pointer is near it
+    const first = poly.pts[0];
+    const nearClose = poly.pts.length >= 3 && Math.hypot(mouse.x - first.x, mouse.y - first.y) <= CLOSE_RADIUS / view.k;
+    poly.pts.forEach((p, j) => {
+      ctx.fillStyle = j === 0 ? '#E76C13' : 'white';
+      ctx.strokeStyle = '#E76C13'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, j === 0 ? 6 : 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    });
+    if (nearClose) {
+      ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(first.x, first.y, 11, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // dims on placed walls
+    drawDims(poly.pts, false);
+
+    // candidate next wall
+    const np = nextPoint();
+    if (np) {
+      const last = poly.pts[poly.pts.length - 1];
+      ctx.setLineDash([6,4]);
+      ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(np.x, np.y); ctx.stroke();
+      ctx.setLineDash([]);
+      if (np.snapped) {   // ring = this click lands EXACTLY on an existing corner
+        ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(np.x, np.y, 9, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#E76C13';
+      }
+      const mx = (last.x + np.x) / 2, my = (last.y + np.y) / 2;
+      labelText(np.distM.toFixed(2) + ' m @ ' + Math.round(np.angDeg) + '°' + (np.par ? ' ∥' : ''), mx, my - 10, '#E76C13');
+    }
+  }
+
+  // plan annotations (text + arrow) — drawn above zones
+  notes.forEach(n => drawNote(n));
+
+  // drag ghosts: symbol chip from the palette / window from its card / door being re-homed
+  if (dragSym && onScreenW(dragSym.cx, dragSym.cy)) {
+    if (dragSym.code === 'DOOR') {
+      const hit = nearestWallAnyZone(dragSym.cx, dragSym.cy, 26 / view.k);
+      if (hit) {
+        const a = hit.z.pts[hit.i], b = hit.z.pts[(hit.i + 1) % hit.z.pts.length];
+        ctx.strokeStyle = '#8d5524'; ctx.lineWidth = 7; ctx.globalAlpha = 0.35;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      drawDoorBar(dragSym.cx, dragSym.cy, 1, 0, 0.9, true);
+    } else if (dragSym.code === 'WIN' || dragSym.code === 'WINTYPE') {
+      const hit = nearestExternalWallAnyZone(dragSym.cx, dragSym.cy, 26 / view.k);
+      if (hit) {
+        const a = hit.z.pts[hit.i], b = hit.z.pts[(hit.i + 1) % hit.z.pts.length];
+        ctx.strokeStyle = '#0b7285'; ctx.lineWidth = 7; ctx.globalAlpha = 0.35;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      ctx.globalAlpha = 0.65; ctx.strokeStyle = '#0b7285'; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(dragSym.cx - 14, dragSym.cy); ctx.lineTo(dragSym.cx + 14, dragSym.cy); ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (SYM[dragSym.code] && (SYM[dragSym.code].wallType || SYM[dragSym.code].wallParty)) {
+      // wall chip: highlight the wall it would change, in the chip's colour
+      const hit = nearestWallAnyZone(dragSym.cx, dragSym.cy, 26 / view.k);
+      if (hit) {
+        const a = hit.z.pts[hit.i], b = hit.z.pts[(hit.i + 1) % hit.z.pts.length];
+        ctx.strokeStyle = SYM[dragSym.code].col; ctx.lineWidth = 7; ctx.globalAlpha = 0.45;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      drawSymbolChip(dragSym.code, dragSym.cx, dragSym.cy, true);
+    } else {
+      drawSymbolChip(dragSym.code, dragSym.cx, dragSym.cy, true);
+    }
+  }
+  if (draggingDoor) {
+    const hit = nearestWallAnyZone(draggingDoor.cx, draggingDoor.cy, 26 / view.k);
+    if (hit) {
+      const a = hit.z.pts[hit.i], b = hit.z.pts[(hit.i + 1) % hit.z.pts.length];
+      ctx.strokeStyle = '#8d5524'; ctx.lineWidth = 7; ctx.globalAlpha = 0.35;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    const dd = draggingDoor.z.doors[draggingDoor.i];
+    drawDoorBar(draggingDoor.cx, draggingDoor.cy, 1, 0, dd ? dd.w : 0.9, true);
+  }
+  if (dragWin && onScreenW(dragWin.cx, dragWin.cy)) {
+    const zw = zones.find(zz => zz.id === dragWin.zid);
+    const hit = zw ? nearestExternalWall(zw, dragWin.cx, dragWin.cy, 26 / view.k) : null;   // windows: external walls only
+    if (hit) {   // highlight the wall it would land on
+      const a = zw.pts[hit.i], b = zw.pts[(hit.i + 1) % zw.pts.length];
+      ctx.strokeStyle = '#0b7285'; ctx.lineWidth = 7; ctx.globalAlpha = 0.4;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.globalAlpha = 0.65; ctx.strokeStyle = '#0b7285'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(dragWin.cx - 14, dragWin.cy); ctx.lineTo(dragWin.cx + 14, dragWin.cy); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();   // back to screen space — north arrow stays put regardless of zoom/pan
+
+  // north arrow, bottom-right corner (top-right now holds the numpad/keypad)
+  const nd = northDeg() * Math.PI / 180;
+  const vx = Math.sin(-nd), vy = -Math.cos(-nd);     // screen direction of compass north
+  const ax = cv.width - 42, ay = cv.height - 50;
+  ctx.strokeStyle = '#888'; ctx.fillStyle = '#888'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(ax, ay, 18, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ax - vx * 12, ay - vy * 12); ctx.lineTo(ax + vx * 12, ay + vy * 12); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(ax + vx * 12, ay + vy * 12);
+  ctx.lineTo(ax + vx * 4 - vy * 4, ay + vy * 4 + vx * 4);
+  ctx.lineTo(ax + vx * 4 + vy * 4, ay + vy * 4 - vx * 4);
+  ctx.closePath(); ctx.fill();
+  ctx.font = '700 11px Segoe UI, Arial'; ctx.textAlign = 'center';
+  ctx.fillText('N', ax + vx * 26, ay + vy * 26 + 4);
+  ctx.textAlign = 'left';
+}
+
+// rounded chip with the symbol code, drawn on the plan (ghost = semi-transparent while dragging)
+function drawSymbolChip(code, x, y, ghost) {
+  const s = SYM[code] || { label: code, col: '#555' };
+  ctx.font = '700 10px Segoe UI, Arial';
+  const w = ctx.measureText(s.label).width + 12;
+  if (ghost) ctx.globalAlpha = 0.6;
+  ctx.fillStyle = 'white'; ctx.strokeStyle = s.col; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x - w / 2, y - 9, w, 18, 5);
+  else ctx.rect(x - w / 2, y - 9, w, 18);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = s.col; ctx.textAlign = 'center';
+  ctx.fillText(s.label, x, y + 3.5);
+  ctx.textAlign = 'left';
+  ctx.globalAlpha = 1;
+}
+
+// short diagonal ticks across a wall — reads like Shane's paper hatching for adjoining buildings
+function drawPartyHatch(a, b) {
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  if (!len) return;
+  const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+  const nx = -uy, ny = ux;
+  ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 1;
+  for (let t = 6; t < len - 3; t += 9) {
+    const px = a.x + ux * t, py = a.y + uy * t;
+    ctx.beginPath();
+    ctx.moveTo(px - ux * 3 - nx * 5, py - uy * 3 - ny * 5);
+    ctx.lineTo(px + ux * 3 + nx * 5, py + uy * 3 + ny * 5);
+    ctx.stroke();
+  }
+}
+
+function drawDims(pts, closed, z) {
+  const n = pts.length;
+  const segs = closed ? n : n - 1;
+  for (let i = 0; i < segs; i++) {
+    const a = pts[i], b = pts[(i + 1) % n];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len < GRID * 0.75) continue;
+    // offset label perpendicular to the wall
+    const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
+    const lx = (a.x + b.x) / 2 + nx * 12, ly = (a.y + b.y) / 2 + ny * 12;
+    labelText(pxToM(len).toFixed(2) + ' m', lx, ly, z ? '#E76C13' : '#555');
+    // editable: tapping the SELECTED zone's dimension opens the big length keypad
+    if (z) dimHits.push({ wx: lx, wy: ly, z, wall: i });
+  }
+}
+
+function labelText(txt, x, y, colour) {
+  ctx.font = '600 11px Segoe UI, Arial';
+  const w = ctx.measureText(txt).width;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillRect(x - w/2 - 3, y - 9, w + 6, 13);
+  ctx.fillStyle = colour;
+  ctx.textAlign = 'center';
+  ctx.fillText(txt, x, y + 1);
+  ctx.textAlign = 'left';
+}
+
+// label with an optional red "!" suffix — the needs-dimensions marker (W1! / D1!).
+// `ang` (optional) rotates the label to run parallel to its wall (used for left/right windows);
+// it's normalised so the text never renders upside down.
+function labelBang(txt, x, y, colour, bang, ang) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (ang) {
+    if (ang > Math.PI / 2) ang -= Math.PI;
+    if (ang < -Math.PI / 2) ang += Math.PI;
+    ctx.rotate(ang);
+  }
+  ctx.font = '600 11px Segoe UI, Arial';
+  const w1 = ctx.measureText(txt).width;
+  const w2 = bang ? ctx.measureText('!').width + 1 : 0;
+  const w = w1 + w2;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillRect(-w/2 - 3, -9, w + 6, 13);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = colour;
+  ctx.fillText(txt, -w/2, 1);
+  if (bang) {
+    ctx.font = '700 12px Segoe UI, Arial';
+    ctx.fillStyle = '#d33';
+    ctx.fillText('!', -w/2 + w1 + 1, 1);
+  }
+  ctx.restore();
+}
+
+function normRect(d) {
+  return {
+    x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1),
+    w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0)
+  };
+}
+
+// existing-edge direction within ~6° of the raw mouse angle — a new wall drawn alongside an
+// angled wall of a previous zone follows EXACTLY the same angle
+function parallelSnap(raw) {
+  let best = null, bd = 6 * Math.PI / 180;
+  zones.forEach(z => {
+    for (let i = 0; i < z.pts.length; i++) {
+      const a = z.pts[i], b = z.pts[(i + 1) % z.pts.length];
+      if (Math.hypot(b.x - a.x, b.y - a.y) < 1) continue;
+      const ea = Math.atan2(b.y - a.y, b.x - a.x);
+      for (const cand of [ea, ea + Math.PI]) {
+        const d = Math.abs(Math.atan2(Math.sin(raw - cand), Math.cos(raw - cand)));
+        if (d < bd) { bd = d; best = cand; }
+      }
+    }
+  });
+  return best;
+}
+function typedAngle() {
+  const el = document.getElementById('angInput');
+  const v = el ? parseFloat(el.value) : NaN;
+  return isNaN(v) ? null : v;
+}
+function clearAng() {
+  const el = document.getElementById('angInput');
+  if (el) el.value = '';
+}
+
+// candidate next corner in walls mode: typed length + typed angle win over the mouse.
+// No typed length/angle + pointer near an existing zone corner -> the wall end snaps EXACTLY
+// onto that corner. Otherwise the angle parallel-snaps to nearby zones' walls, then 15°.
+function nextPoint() {
+  if (!poly || !poly.pts.length) return null;
+  const last = poly.pts[poly.pts.length - 1];
+  const tAng = typedAngle();
+  if (!(lenBuf && parseFloat(lenBuf) > 0) && tAng == null) {
+    const sv = snapToVertex(mouse.x, mouse.y);
+    if (sv && (sv.x !== last.x || sv.y !== last.y)) {
+      const sdx = sv.x - last.x, sdy = sv.y - last.y;
+      return { x: sv.x, y: sv.y, distM: pxToM(Math.hypot(sdx, sdy)),
+               angDeg: (-Math.atan2(sdy, sdx) * 180 / Math.PI + 360) % 360, snapped: true };
+    }
+  }
+  const dx = mouse.x - last.x, dy = mouse.y - last.y;
+  let ang = Math.atan2(dy, dx), par = false;
+  if (tAng != null) {
+    ang = -tAng * Math.PI / 180;   // compass-style — matches the on-screen ° readout
+  } else if (!shiftHeld) {
+    const pa = parallelSnap(ang);
+    if (pa != null) { ang = pa; par = true; }
+    else ang = Math.round(ang / ANGLE_SNAP) * ANGLE_SNAP;
+  }
+  let distM;
+  if (lenBuf && parseFloat(lenBuf) > 0) distM = parseFloat(lenBuf);
+  else distM = Math.round(pxToM(Math.hypot(dx, dy)) * 4) / 4;   // free-mouse rounds to 0.25 m
+  const d = mToPx(distM);
+  let angDeg = (-ang * 180 / Math.PI + 360) % 360;  // screen y is down; report compass-style
+  return { x: last.x + Math.cos(ang) * d, y: last.y + Math.sin(ang) * d, distM, angDeg, par };
+}
+
+function zoneAt(x, y) {
+  for (let i = zones.length - 1; i >= 0; i--) {
+    if (inPoly(zones[i].pts, x, y)) return zones[i];
+  }
+  return null;
+}
+
+// nearest corner of zone z within finger range, or null
+const VERTEX_RADIUS = 14;   // SCREEN px hit radius — generous for touch (divided by zoom)
+function vertexAt(z, x, y) {
+  let best = null, bd = VERTEX_RADIUS / view.k;
+  z.pts.forEach((p, i) => {
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d <= bd) { bd = d; best = i; }
+  });
+  return best;
+}
+
+// nearest corner of ANY zone within snap range — lets a new wall click exactly onto a
+// previously drawn corner, so butted rooms share corners instead of nearly-sharing them
+const SNAP_VERTEX = 12;
+function snapToVertex(x, y, excludeId) {
+  let best = null, bd = SNAP_VERTEX / view.k;
+  zones.forEach(z => {
+    if (z.id === excludeId) return;
+    z.pts.forEach(p => {
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d < bd) { bd = d; best = p; }
+    });
+  });
+  return best ? { x: best.x, y: best.y } : null;
+}
+
+// placed fitting symbol under the pointer, topmost zone first
+function symbolAt(x, y) {
+  for (let zi = zones.length - 1; zi >= 0; zi--) {
+    const list = zones[zi].symbols || [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (Math.hypot(list[i].x - x, list[i].y - y) <= 12 / view.k) return { z: zones[zi], i };
+    }
+  }
+  return null;
+}
+
+// nearest wall (edge) of zone z within tol px — returns {i, t, d} with t = 0..1 along the edge
+function nearestWall(z, x, y, tol) {
+  let best = null, bd = tol;
+  for (let i = 0; i < z.pts.length; i++) {
+    const a = z.pts[i], b = z.pts[(i + 1) % z.pts.length];
+    const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+    if (!L2) continue;
+    let t = ((x - a.x) * dx + (y - a.y) * dy) / L2;
+    t = Math.max(0, Math.min(1, t));
+    const d = Math.hypot(a.x + dx * t - x, a.y + dy * t - y);
+    if (d < bd) { bd = d; best = { i, t, d }; }
+  }
+  return best;
+}
+
+// nearest wall of ANY zone — used by door placement/dragging
+function nearestWallAnyZone(x, y, tol) {
+  let best = null;
+  zones.forEach(z => {
+    const hit = nearestWall(z, x, y, tol);
+    if (hit && (!best || hit.d < best.d)) best = { z, ...hit };
+  });
+  return best;
+}
+
+// nearest EXTERNAL wall of ANY zone — palette window drops
+function nearestExternalWallAnyZone(x, y, tol) {
+  let best = null;
+  zones.forEach(z => {
+    const hit = nearestExternalWall(z, x, y, tol);
+    if (hit && (!best || hit.d < best.d)) best = { z, ...hit };
+  });
+  return best;
+}
+
+// nearest EXTERNAL wall of zone z — windows only go on external walls
+function nearestExternalWall(z, x, y, tol) {
+  ensureWalls(z);
+  let best = null, bd = tol;
+  for (let i = 0; i < z.pts.length; i++) {
+    if (isInternalWall(z.walls[i])) continue;
+    const a = z.pts[i], b = z.pts[(i + 1) % z.pts.length];
+    const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+    if (!L2) continue;
+    let t = ((x - a.x) * dx + (y - a.y) * dy) / L2;
+    t = Math.max(0, Math.min(1, t));
+    const d = Math.hypot(a.x + dx * t - x, a.y + dy * t - y);
+    if (d < bd) { bd = d; best = { i, t, d }; }
+  }
+  return best;
+}
+
+// window symbol under the pointer (positions cached by render)
+function windowAt(x, y) {
+  for (let i = winHits.length - 1; i >= 0; i--) {
+    if (Math.hypot(winHits[i].x - x, winHits[i].y - y) <= 12 / view.k) return winHits[i];
+  }
+  return null;
+}
+
+// dimension label under the pointer (selected zone only) — tap to edit the wall length
+function dimAt(x, y) {
+  for (let i = dimHits.length - 1; i >= 0; i--) {
+    if (Math.hypot(dimHits[i].wx - x, dimHits[i].wy - y) <= 18 / view.k) return dimHits[i];
+  }
+  return null;
+}
+
+// the editable height chip under the pointer (rect hit-test, world coords)
+function heightChipAt(x, y) {
+  for (let i = heightHits.length - 1; i >= 0; i--) {
+    const h = heightHits[i];
+    if (x >= h.x - h.w / 2 && x <= h.x + h.w / 2 && y >= h.y - 9 && y <= h.y + 9) return h;
+  }
+  return null;
+}
+// the zone-number label under the pointer (drag handle for the label cluster)
+function labelAt(x, y) {
+  for (let i = labelHits.length - 1; i >= 0; i--) {
+    const h = labelHits[i];
+    if (x >= h.x - h.w / 2 - 3 && x <= h.x + h.w / 2 + 3 && y >= h.y - 9 && y <= h.y + 6) return h;
+  }
+  return null;
+}
+
+// annotation under the pointer: arrow tip first, then the text box (uses _box cached by drawNote)
+function noteAt(x, y) {
+  for (let i = notes.length - 1; i >= 0; i--) {
+    const n = notes[i];
+    if (Math.hypot(n.x - x, n.y - y) <= 10 / view.k) return { i, part: 'tip' };
+    const b = n._box;
+    if (b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return { i, part: 'box' };
+  }
+  return null;
+}
+
+// is edge i of zone z geometrically shared with another zone (collinear + overlapping)?
+function isSharedEdge(z, i) {
+  const TOL = 6, MIN_OVERLAP = 12;
+  const a1 = z.pts[i], a2 = z.pts[(i + 1) % z.pts.length];
+  const lenA = Math.hypot(a2.x - a1.x, a2.y - a1.y);
+  if (lenA < 1) return false;
+  const ux = (a2.x - a1.x) / lenA, uy = (a2.y - a1.y) / lenA;
+  for (const zB of zones) {
+    if (zB === z) continue;
+    for (let j = 0; j < zB.pts.length; j++) {
+      const b1 = zB.pts[j], b2 = zB.pts[(j + 1) % zB.pts.length];
+      if (Math.abs(ux * (b1.y - a1.y) - uy * (b1.x - a1.x)) > TOL) continue;
+      if (Math.abs(ux * (b2.y - a1.y) - uy * (b2.x - a1.x)) > TOL) continue;
+      const t1 = ux * (b1.x - a1.x) + uy * (b1.y - a1.y);
+      const t2 = ux * (b2.x - a1.x) + uy * (b2.y - a1.y);
+      if (Math.min(lenA, Math.max(t1, t2)) - Math.max(0, Math.min(t1, t2)) >= MIN_OVERLAP) return true;
+    }
+  }
+  return false;
+}
+
+// the other zones' edges that geometrically coincide with edge i of zone z (same maths as
+// isSharedEdge) — a shared wall is ONE physical wall, so type changes apply to both sides
+function coincidentEdges(z, i) {
+  const out = [], TOL = 6, MIN_OVERLAP = 12;
+  const a1 = z.pts[i], a2 = z.pts[(i + 1) % z.pts.length];
+  const lenA = Math.hypot(a2.x - a1.x, a2.y - a1.y);
+  if (lenA < 1) return out;
+  const ux = (a2.x - a1.x) / lenA, uy = (a2.y - a1.y) / lenA;
+  zones.forEach(zB => {
+    if (zB === z) return;
+    for (let j = 0; j < zB.pts.length; j++) {
+      const b1 = zB.pts[j], b2 = zB.pts[(j + 1) % zB.pts.length];
+      if (Math.abs(ux * (b1.y - a1.y) - uy * (b1.x - a1.x)) > TOL) continue;
+      if (Math.abs(ux * (b2.y - a1.y) - uy * (b2.x - a1.x)) > TOL) continue;
+      const t1 = ux * (b1.x - a1.x) + uy * (b1.y - a1.y);
+      const t2 = ux * (b2.x - a1.x) + uy * (b2.y - a1.y);
+      if (Math.min(lenA, Math.max(t1, t2)) - Math.max(0, Math.min(t1, t2)) >= MIN_OVERLAP) out.push({ z: zB, i: j });
+    }
+  });
+  return out;
+}
+
+// Default wall types from geometry (Shane, 11 Jun): edge-of-model walls = External — cavity,
+// shared walls = Internal — stud. Re-derived whenever geometry changes, but ONLY on walls the
+// user hasn't set by hand (w.auto !== false). Manual choices are never overwritten.
+function autoTypeWalls() {
+  zones.forEach(z => {
+    ensureWalls(z);
+    z.walls.forEach((w, i) => {
+      if (w.auto === false) return;
+      w.type = isSharedEdge(z, i) ? 'Internal — stud' : 'External — cavity';
+      w.auto = true;
+    });
+  });
+}
+
+// candidate perpendicular offsets where a dragged wall becomes flush with another zone's
+// parallel edge — collected once at drag start, snapped to within 8px during the drag
+function wallSnapCandidates(z, i) {
+  const a = z.pts[i], b = z.pts[(i + 1) % z.pts.length];
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+  const { nx, ny } = outwardNormal(z, i);
+  const out = [];
+  zones.forEach(zB => {
+    if (zB.id === z.id) return;
+    zB.pts.forEach((p1, j) => {
+      const p2 = zB.pts[(j + 1) % zB.pts.length];
+      const dx = p2.x - p1.x, dy = p2.y - p1.y, l = Math.hypot(dx, dy) || 1;
+      if (Math.abs(ux * (dy / l) - uy * (dx / l)) > 0.05) return;   // not parallel
+      out.push((p1.x - a.x) * nx + (p1.y - a.y) * ny);
+    });
+  });
+  return out;
+}
+
+// ---------- doors (openings dragged onto walls) ----------
+function doorPos(z, d) {
+  const a = z.pts[d.wall], b = z.pts[(d.wall + 1) % z.pts.length];
+  if (!a || !b) return null;
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  return { x: a.x + (b.x - a.x) * d.t, y: a.y + (b.y - a.y) * d.t,
+           ux: (b.x - a.x) / len, uy: (b.y - a.y) / len };
+}
+function relabelDoors(z) { (z.doors || []).forEach((d, i) => d.label = 'D' + (i + 1)); }
+// internal doors need no dimensions — no ! mark, no dimension box
+function doorIsInternal(z, d) { ensureWalls(z); return isInternalWall(z.walls[d.wall]); }
+
+// sidebar wall order: front (top of page), right, bottom, left — front of building = top.
+// Angled walls bucket to the nearest of the four; within a side, reading order.
+function wallOrder(z) {
+  const mid = i => { const a = z.pts[i], b = z.pts[(i + 1) % z.pts.length]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
+  const rank = { front: 0, right: 1, bottom: 2, left: 3 };
+  return z.pts.map((_, i) => {
+    const { nx, ny } = outwardNormal(z, i);
+    const side = Math.abs(ny) >= Math.abs(nx) ? (ny < 0 ? 'front' : 'bottom') : (nx > 0 ? 'right' : 'left');
+    return { i, side };
+  }).sort((p, q) => {
+    if (rank[p.side] !== rank[q.side]) return rank[p.side] - rank[q.side];
+    const mp = mid(p.i), mq = mid(q.i);
+    return (p.side === 'front' || p.side === 'bottom') ? mp.x - mq.x : mp.y - mq.y;
+  });
+}
+function doorAt(x, y) {
+  for (let zi = zones.length - 1; zi >= 0; zi--) {
+    const z = zones[zi], list = z.doors || [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      const p = doorPos(z, list[i]);
+      if (p && Math.hypot(p.x - x, p.y - y) <= 12 / view.k) return { z, i };
+    }
+  }
+  return null;
+}
+function drawDoorBar(x, y, ux, uy, widthM, ghost) {
+  const half = Math.min(mToPx(widthM || 0.9) / 2, 48);
+  if (ghost) ctx.globalAlpha = 0.6;
+  ctx.strokeStyle = '#8d5524'; ctx.lineWidth = 8;
+  ctx.beginPath(); ctx.moveTo(x - ux * half, y - uy * half); ctx.lineTo(x + ux * half, y + uy * half); ctx.stroke();
+  ctx.strokeStyle = '#f6e7d8'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x - ux * half, y - uy * half); ctx.lineTo(x + ux * half, y + uy * half); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// annotation: text box + arrow to the point it talks about
+function drawNote(n) {
+  ctx.strokeStyle = '#d35400'; ctx.fillStyle = '#d35400'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(n.tx, n.ty); ctx.lineTo(n.x, n.y); ctx.stroke();
+  const ang = Math.atan2(n.y - n.ty, n.x - n.tx);
+  ctx.beginPath();
+  ctx.moveTo(n.x, n.y);
+  ctx.lineTo(n.x - 9 * Math.cos(ang - 0.4), n.y - 9 * Math.sin(ang - 0.4));
+  ctx.lineTo(n.x - 9 * Math.cos(ang + 0.4), n.y - 9 * Math.sin(ang + 0.4));
+  ctx.closePath(); ctx.fill();
+  const lines = (n.text || 'tap to edit').split('\n');
+  ctx.font = '11px Segoe UI, Arial';
+  const wmax = Math.max(...lines.map(l => ctx.measureText(l).width));
+  const bw = wmax + 12, bh = lines.length * 14 + 8;
+  n._box = { x: n.tx - bw / 2, y: n.ty - bh / 2, w: bw, h: bh };
+  ctx.fillStyle = 'white'; ctx.strokeStyle = '#d35400'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(n._box.x, n._box.y, n._box.w, n._box.h, 4);
+  else ctx.rect(n._box.x, n._box.y, n._box.w, n._box.h);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = n.text ? '#2b2b2b' : '#bbb';
+  lines.forEach((l, k) => ctx.fillText(l, n._box.x + 6, n._box.y + 15 + k * 14));
+}
+
+// dragged-corner snapping: square up with the adjacent corners first, then the grid
+function snapAxis(v, neighbours) {
+  for (const c of neighbours) if (Math.abs(v - c) <= 8 / view.k) return c;
+  const g = Math.round(v / GRID) * GRID;
+  return Math.abs(v - g) <= 6 / view.k ? g : v;
+}
+function inPoly(pts, x, y) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const a = pts[i], b = pts[j];
+    if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+// ---------- pointer input (mouse + touch + pencil) ----------
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  cv.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+  if (ptrs.size === 2) {
+    // second finger -> this is a pinch: abort whatever the first press started
+    if (downAddedCorner && poly) {
+      poly.pts.pop();
+      if (!poly.pts.length) poly = null;
+      downAddedCorner = false;
+    }
+    draggingVertex = draggingWall = draggingDoor = draggingNote = draggingSymbol = draggingWinPos = draggingZoneLabel = null;
+    rectDraw = null; panning = null;
+    const [p1, p2] = [...ptrs.values()];
+    pinch = { d0: Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1,
+              mid0: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
+              k0: view.k, ox0: view.ox, oy0: view.oy };
+    render();
+    return;
+  }
+  if (ptrs.size > 2 || pinch) return;
+  downAddedCorner = false;
+  if (e.button === 1) {   // middle button = pan
+    panning = { sx: e.offsetX, sy: e.offsetY, ox: view.ox, oy: view.oy };
+    return;
+  }
+  pushUndo();   // pre-state of whatever this press turns into (deduped if nothing changes)
+  if (popCtx) closePop();
+  const x = toWX(e.offsetX), y = toWY(e.offsetY);
+  mouse.x = x; mouse.y = y;   // touch has no hover — seed position so nextPoint() aims correctly
+  if (mode === 'rect') {
+    rectDraw = { x0: snap(x), y0: snap(y), x1: snap(x), y1: snap(y) };
+  } else if (mode === 'poly') {
+    if (!poly) {
+      // first corner snaps onto an existing zone corner if one is in range
+      poly = { pts: [snapToVertex(x, y) || { x: snap(x), y: snap(y) }] };
+      lenBuf = '';
+      downAddedCorner = true;
+    } else {
+      const first = poly.pts[0];
+      if (poly.pts.length >= 3 && Math.hypot(x - first.x, y - first.y) <= CLOSE_RADIUS / view.k) {
+        closePoly();
+      } else {
+        const np = nextPoint();
+        if (np && np.distM > 0.01) { poly.pts.push({ x: np.x, y: np.y }); lenBuf = ''; clearAng(); downAddedCorner = true; }
+      }
+    }
+    updateLenbox();
+  } else {
+    // hit order: corner of the selected zone > symbol > door > note > wall edge of the selected zone > zone body (select only — zones do not move)
+    const zSel = zones.find(z => z.id === selectedId);
+    const vi = zSel ? vertexAt(zSel, x, y) : null;
+    const sym = vi == null ? symbolAt(x, y) : null;
+    const door = (vi == null && !sym) ? doorAt(x, y) : null;
+    const note = (vi == null && !sym && !door) ? noteAt(x, y) : null;
+    const winHit = (vi == null && !sym && !door && !note) ? windowAt(x, y) : null;
+    const hChip = (vi == null && !sym && !door && !note && !winHit) ? heightChipAt(x, y) : null;
+    const lbl = (vi == null && !sym && !door && !note && !winHit && !hChip) ? labelAt(x, y) : null;
+    const dim = (vi == null && !sym && !door && !note && !winHit && !hChip && !lbl) ? dimAt(x, y) : null;
+    const we = (vi == null && !sym && !door && !note && !winHit && !hChip && !lbl && !dim && zSel) ? nearestWall(zSel, x, y, 8 / view.k) : null;
+    if (vi != null) {
+      draggingVertex = { id: zSel.id, vi };
+    } else if (sym) {
+      draggingSymbol = { z: sym.z, i: sym.i, sx: x, sy: y, moved: false };
+    } else if (door) {
+      draggingDoor = { z: door.z, i: door.i, cx: x, cy: y, sx: x, sy: y, moved: false };
+    } else if (note) {
+      draggingNote = { i: note.i, part: note.part, sx: x, sy: y, moved: false };
+    } else if (winHit) {
+      // grab a window: drag = slide it along its wall; tap (no move) = open its dimension box
+      select(winHit.z.id);
+      draggingWinPos = { z: winHit.z, wi: winHit.z.windows.indexOf(winHit.win), sx: x, sy: y, moved: false };
+    } else if (hChip) {
+      // tap the height chip -> big keypad to set that zone's room height
+      select(hChip.z.id);
+      openHeightPad(hChip.z);
+    } else if (lbl) {
+      // grab the zone number -> drag the whole label cluster (number + area + height chip)
+      pushUndo();
+      select(lbl.z.id);
+      const o = lbl.z.labelOff || { dx: 0, dy: 0 };
+      draggingZoneLabel = { z: lbl.z, sx: x, sy: y, ox: o.dx, oy: o.dy };
+    } else if (dim) {
+      // tap a length label -> big keypad to set that wall's exact length
+      openLenPad(dim.z, dim.wall);
+    } else if (we) {
+      // grab the whole wall — both corners move together, perpendicular to the wall.
+      // A plain click (no movement) on an EXTERNAL wall opens its window-dimensions popup.
+      const n = zSel.pts.length;
+      draggingWall = {
+        id: zSel.id, i: we.i, n: outwardNormal(zSel, we.i),
+        startX: x, startY: y, moved: false,
+        orig: [{ ...zSel.pts[we.i] }, { ...zSel.pts[(we.i + 1) % n] }],
+        candidates: wallSnapCandidates(zSel, we.i)
+      };
+      selWall = we.i;
+    } else {
+      const z = zoneAt(x, y);
+      select(z ? z.id : null);
+    }
+  }
+  render();
+});
+
+
+cv.addEventListener('pointermove', e => {
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+  if (pinch && ptrs.size === 2) {
+    // two fingers: pinch zooms about the midpoint, moving the midpoint pans
+    const [p1, p2] = [...ptrs.values()];
+    const d = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    const k = Math.min(4, Math.max(0.2, pinch.k0 * d / pinch.d0));
+    const wx = (pinch.mid0.x - pinch.ox0) / pinch.k0, wy = (pinch.mid0.y - pinch.oy0) / pinch.k0;
+    view.k = k;
+    view.ox = mid.x - wx * k;
+    view.oy = mid.y - wy * k;
+    render();
+    return;
+  }
+  if (pinch) return;
+  if (panning) {
+    view.ox = panning.ox + (e.offsetX - panning.sx);
+    view.oy = panning.oy + (e.offsetY - panning.sy);
+    render();
+    return;
+  }
+  mouse.x = toWX(e.offsetX); mouse.y = toWY(e.offsetY);
+  if (rectDraw) { rectDraw.x1 = snap(mouse.x); rectDraw.y1 = snap(mouse.y); }
+  if (draggingVertex) {
+    const z = zones.find(z => z.id === draggingVertex.id);
+    if (z) {
+      const n = z.pts.length;
+      const prev = z.pts[(draggingVertex.vi - 1 + n) % n], next = z.pts[(draggingVertex.vi + 1) % n];
+      const p = z.pts[draggingVertex.vi];
+      // another zone's corner in range wins (butt rooms together exactly), then square-up/grid
+      const sv = shiftHeld ? null : snapToVertex(mouse.x, mouse.y, z.id);
+      if (sv) { p.x = sv.x; p.y = sv.y; }
+      else {
+        p.x = shiftHeld ? mouse.x : snapAxis(mouse.x, [prev.x, next.x]);
+        p.y = shiftHeld ? mouse.y : snapAxis(mouse.y, [prev.y, next.y]);
+      }
+    }
+  }
+  if (draggingSymbol) {
+    if (Math.hypot(mouse.x - draggingSymbol.sx, mouse.y - draggingSymbol.sy) > 5 / view.k) draggingSymbol.moved = true;
+    if (draggingSymbol.moved) {
+      const s = draggingSymbol.z.symbols[draggingSymbol.i];
+      s.x = mouse.x; s.y = mouse.y; s.placed = true;   // pin it — auto-sync won't relocate a hand-placed chip
+    }
+  }
+  if (draggingWall) {
+    const z = zones.find(zz => zz.id === draggingWall.id);
+    if (z) {
+      // perpendicular push: project pointer travel onto the wall's outward normal
+      let d = (mouse.x - draggingWall.startX) * draggingWall.n.nx + (mouse.y - draggingWall.startY) * draggingWall.n.ny;
+      if (Math.hypot(mouse.x - draggingWall.startX, mouse.y - draggingWall.startY) > 5 / view.k) draggingWall.moved = true;
+      if (!shiftHeld) {
+        const c = draggingWall.candidates.find(c => Math.abs(d - c) <= 8 / view.k);   // flush with another zone's wall
+        if (c !== undefined) d = c;
+        else d = mToPx(Math.round(pxToM(d) * 4) / 4);                        // else 0.25 m steps
+      }
+      const n = z.pts.length;
+      z.pts[draggingWall.i] = { x: draggingWall.orig[0].x + draggingWall.n.nx * d, y: draggingWall.orig[0].y + draggingWall.n.ny * d };
+      z.pts[(draggingWall.i + 1) % n] = { x: draggingWall.orig[1].x + draggingWall.n.nx * d, y: draggingWall.orig[1].y + draggingWall.n.ny * d };
+    }
+  }
+  if (draggingDoor) {
+    draggingDoor.cx = mouse.x; draggingDoor.cy = mouse.y;
+    if (Math.hypot(mouse.x - draggingDoor.sx, mouse.y - draggingDoor.sy) > 5 / view.k) draggingDoor.moved = true;
+  }
+  if (draggingNote) {
+    const n = notes[draggingNote.i];
+    if (n) {
+      if (Math.hypot(mouse.x - draggingNote.sx, mouse.y - draggingNote.sy) > 5 / view.k) draggingNote.moved = true;
+      if (draggingNote.part === 'tip') { n.x = mouse.x; n.y = mouse.y; }
+      else { n.tx = mouse.x; n.ty = mouse.y; }
+    }
+  }
+  if (draggingWinPos) {
+    const { z, wi } = draggingWinPos;
+    const w = z.windows[wi];
+    if (w && w.wall != null && z.pts[w.wall]) {
+      const a = z.pts[w.wall], b = z.pts[(w.wall + 1) % z.pts.length];
+      const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy;
+      const t = L2 ? ((mouse.x - a.x) * dx + (mouse.y - a.y) * dy) / L2 : 0.5;
+      w.t = Math.min(0.92, Math.max(0.08, t));   // slide along the wall
+    }
+    if (Math.hypot(mouse.x - draggingWinPos.sx, mouse.y - draggingWinPos.sy) > 5 / view.k) draggingWinPos.moved = true;
+  }
+  if (draggingZoneLabel) {
+    draggingZoneLabel.z.labelOff = { dx: draggingZoneLabel.ox + (mouse.x - draggingZoneLabel.sx),
+                                     dy: draggingZoneLabel.oy + (mouse.y - draggingZoneLabel.sy) };
+  }
+  if (!draggingVertex && !draggingSymbol && !draggingWall && !draggingDoor && !draggingNote && !draggingWinPos && !draggingZoneLabel && mode === 'select' && !e.buttons) {
+    // hover feedback over a grabbable corner or wall edge
+    const zSel = zones.find(z => z.id === selectedId);
+    cv.style.cursor = (zSel && (vertexAt(zSel, mouse.x, mouse.y) != null || nearestWall(zSel, mouse.x, mouse.y, 8 / view.k))) ? 'move' : '';
+  }
+  if (rectDraw || draggingVertex || draggingSymbol || draggingWall || draggingDoor || draggingNote || draggingWinPos || draggingZoneLabel || poly) render();
+});
+
+window.addEventListener('pointercancel', e => {
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) pinch = null;
+});
+window.addEventListener('pointerup', (e) => {
+  if (e && ptrs.has(e.pointerId)) ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) {
+    if (pinch) { pinch = null; return; }   // pinch just ended — nothing else to finish
+  }
+  panning = null;
+  downAddedCorner = false;
+  if (rectDraw) {
+    const r = normRect(rectDraw);
+    rectDraw = null;
+    if (r.w >= GRID && r.h >= GRID) {
+      addZone([{x:r.x,y:r.y},{x:r.x+r.w,y:r.y},{x:r.x+r.w,y:r.y+r.h},{x:r.x,y:r.y+r.h}]);
+    }
+    render();
+  }
+  if (draggingVertex) {
+    draggingVertex = null;
+    // lengths, orientations, area and shared-ness all changed with the corner
+    autoTypeWalls();
+    const z = zones.find(z => z.id === selectedId);
+    if (z) P('pArea').textContent = zoneAreaM2(z).toFixed(1) + ' m²';
+    renderWalls(); renderWindows(); render();
+  }
+  if (draggingWall) {
+    const dw = draggingWall;
+    draggingWall = null;
+    const z = zones.find(zz => zz.id === dw.id);
+    if (!dw.moved && z) {
+      // plain click on a wall -> popup (window dims on external; split option on any wall).
+      // Remember WHERE on the wall the click landed, so "split here" splits at that point.
+      const a = z.pts[dw.i], b = z.pts[(dw.i + 1) % z.pts.length];
+      const L2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+      const st = L2 ? Math.max(0.05, Math.min(0.95, ((mouse.x - a.x) * (b.x - a.x) + (mouse.y - a.y) * (b.y - a.y)) / L2)) : 0.5;
+      openWallPop(z, dw.i, mouse.x, mouse.y, st);
+    } else {
+      autoTypeWalls();
+      if (z) P('pArea').textContent = zoneAreaM2(z).toFixed(1) + ' m²';
+      renderWalls(); renderWindows(); renderDoors(); render();
+    }
+  }
+  if (draggingDoor) {
+    const { z, i, moved, cx, cy } = draggingDoor;
+    draggingDoor = null;
+    if (!moved) {
+      // plain click on a door -> its dimensions popup
+      openDoorPop(z, i, cx, cy);
+    } else {
+      // re-home the door on the nearest wall of any zone; dropped clear of every wall = delete
+      const d = z.doors[i];
+      const hit = nearestWallAnyZone(cx, cy, 26);
+      z.doors.splice(i, 1);
+      if (hit) {
+        d.wall = hit.i;
+        d.t = Math.min(0.92, Math.max(0.08, hit.t));
+        (hit.z.doors = hit.z.doors || []).push(d);
+        relabelDoors(hit.z);
+      }
+      relabelDoors(z);
+      renderDoors(); render();
+    }
+  }
+  if (draggingWinPos) {
+    const { z, wi, moved, sx, sy } = draggingWinPos;
+    draggingWinPos = null;
+    if (!moved) { select(z.id); openWinPop(z, wi, sx, sy); }   // tap = edit dimensions
+    else { renderWindows(); render(); }                        // slid along the wall = done
+  }
+  if (draggingZoneLabel) { draggingZoneLabel = null; render(); }
+  if (draggingNote) {
+    const { i, part, moved } = draggingNote;
+    draggingNote = null;
+    const n = notes[i];
+    if (n) {
+      const offCanvas = !onScreenW(n.tx, n.ty);
+      if (part === 'box' && moved && offCanvas) notes.splice(i, 1);          // dragged away = delete
+      else if (part === 'box' && !moved) openNotePop(i, mouse.x, mouse.y);   // tap = edit
+    }
+    render();
+  }
+  if (draggingSymbol) {
+    const { z, i, moved } = draggingSymbol;
+    const s = z.symbols[i];
+    draggingSymbol = null;
+    if (!moved) {
+      // tap (no drag): a model-bearing hot-water symbol opens its model note
+      if (s && SYM[s.code] && SYM[s.code].note) openSymNotePop(z, i, mouse.x, mouse.y);
+    } else {
+      // dropped outside every zone = delete; dropped in another zone = transfer
+      const target = zoneAt(s.x, s.y);
+      if (!target) z.symbols.splice(i, 1);
+      else if (target !== z) { z.symbols.splice(i, 1); (target.symbols = target.symbols || []).push(s); }
+    }
+    render();
+  }
+  refreshList();
+});
+
+// ---------- keyboard: typed lengths, close, cancel ----------
+window.addEventListener('keydown', e => {
+  if (e.key === 'Shift') { shiftHeld = true; if (poly) render(); }
+  if (e.key === 'Escape' && popCtx) { closePop(); e.preventDefault(); return; }
+
+  // don't hijack typing in sidebar inputs
+  if (['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+  if (mode === 'poly' && poly) {
+    if (/^[0-9.]$/.test(e.key)) {
+      if (!(e.key === '.' && lenBuf.includes('.'))) lenBuf += e.key;
+      updateLenbox(); render(); e.preventDefault(); return;
+    }
+    if (e.key === 'Backspace') { lenBuf = lenBuf.slice(0, -1); updateLenbox(); render(); e.preventDefault(); return; }
+    if (e.key === 'Enter') {
+      if (lenBuf && parseFloat(lenBuf) > 0) {
+        const np = nextPoint();
+        if (np) { poly.pts.push({ x: np.x, y: np.y }); lenBuf = ''; clearAng(); }
+      } else if (poly.pts.length >= 3) {
+        closePoly();
+      }
+      updateLenbox(); render(); e.preventDefault(); return;
+    }
+    if (e.key === 'Escape') {
+      if (lenBuf) lenBuf = '';
+      else poly = null;
+      updateLenbox(); render(); e.preventDefault(); return;
+    }
+  }
+
+  if (mode === 'select' && selectedId && (e.key === 'Delete')) {
+    const id = selectedId, z = zones.find(q => q.id === id);
+    if (z) askConfirm('Delete zone ' + z.name + '? This cannot be undone except with Undo.', () => {
+      pushUndo();
+      zones = zones.filter(q => q.id !== id);
+      select(null); render(); refreshList();
+    });
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    undo(); e.preventDefault();
+  }
+});
+window.addEventListener('keyup', e => {
+  if (e.key === 'Shift') { shiftHeld = false; if (poly) render(); }
+});
+
+function updateLenbox() {
+  const box = document.getElementById('lenbox');
+  if (poly && lenBuf) {
+    box.style.display = 'block';
+    box.textContent = 'Next wall: ' + lenBuf + ' m — press Enter / Place';
+  } else if (poly && poly.pts.length) {
+    box.style.display = 'block';
+    box.textContent = 'Type a wall length (m) — keyboard or the Wall box above';
+  } else {
+    box.style.display = 'none';
+  }
+  // keep the toolbar Wall input in step (don't fight the user while they're typing in it)
+  const li = document.getElementById('lenInput');
+  if (document.activeElement !== li && li.value !== lenBuf) li.value = lenBuf;
+  // live corner count on the Finish button so you can SEE you have all the corners before closing
+  const fb = document.getElementById('btnCloseRoom');
+  if (fb) fb.textContent = (poly && poly.pts.length) ? '✓ Finish room (' + poly.pts.length + ')' : '✓ Finish room';
+}
+
+// toolbar Wall input — the touch/tablet route for exact lengths
+const lenInput = document.getElementById('lenInput');
+lenInput.addEventListener('input', () => {
+  lenBuf = lenInput.value;
+  if (poly) render();
+});
+lenInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { placeTypedWall(); e.preventDefault(); }
+});
+document.getElementById('btnPlaceWall').addEventListener('click', placeTypedWall);
+document.getElementById('btnCloseRoom').addEventListener('click', () => {
+  if (poly && poly.pts.length >= 3) closePoly();
+});
+
+function placeTypedWall() {
+  if (mode !== 'poly' || !poly || !poly.pts.length) return;
+  if (!(lenBuf && parseFloat(lenBuf) > 0)) return;
+  const np = nextPoint();
+  if (np) { poly.pts.push({ x: np.x, y: np.y }); lenBuf = ''; clearAng(); }
+  updateLenbox(); render();
+}
+
+function closePoly() {
+  if (poly && poly.pts.length >= 3) addZone(poly.pts);
+  poly = null; lenBuf = ''; clearAng();
+  updateLenbox(); render(); refreshList();
+}
+
+// next sequential number for a floor: max existing seq on that floor + 1 (gaps after a delete
+// are left as-is — predictable, and nothing references zone names)
+function nextZoneSeq(floor) {
+  let mx = 0;
+  zones.forEach(z => { if (z.floor === floor && z.seq > mx) mx = z.seq; });
+  return mx + 1;
+}
+const pad2 = n => (n < 10 ? '0' : '') + n;
+function zoneAutoName(floor, seq) { return 'z' + floor + '/' + pad2(seq); }
+
+function addZone(pts) {
+  pushUndo();
+  const floor = currentFloor();
+  const seq = nextZoneSeq(floor);
+  const z = {
+    id: nextId++,
+    pts: pts.map(p => ({ x: p.x, y: p.y })),
+    floor, seq,
+    name: zoneAutoName(floor, seq),   // z0/01, z0/02 … (floor 0 = ground; first floor = z1/01)
+    // survey fields start EMPTY on purpose — a blank means "not recorded yet",
+    // so an untouched zone can never masquerade as a surveyed one
+    activity: '', height: 0,
+    heating: '', cooling: '',
+    lighting: '', vent: '', hws: '', notes: '',
+    windows: [], noWindows: false, symbols: [], doors: [],
+    autoF: { lighting: true, heating: true, height: true },   // inherits global defaults until amended
+    walls: pts.map(() => ({ type: '', party: false, auto: true }))
+  };
+  zones.push(z);
+  applyGlobals();    // lighting/heating/height from the Global defaults panel
+  autoTypeWalls();   // edge-of-model -> External — cavity, shared -> Internal — stud
+  select(z.id);
+}
+
+// ---------- walls (per-edge construction types) ----------
+function ensureWalls(z) {
+  if (!z.walls || z.walls.length !== z.pts.length)
+    z.walls = z.pts.map((_, i) => (z.walls && z.walls[i]) ? z.walls[i] : { type: '', party: false, auto: true });
+}
+
+// split wall i of zone z at fraction t — inserts a vertex, both halves inherit the wall's
+// type/party/thickness, and every window/door index + position is re-mapped so nothing moves.
+// Lets part of a wall be marked adjoining while the rest stays external.
+function splitWall(z, i, t) {
+  pushUndo();
+  t = Math.max(0.05, Math.min(0.95, t || 0.5));
+  const a = z.pts[i], b = z.pts[(i + 1) % z.pts.length];
+  z.pts.splice(i + 1, 0, { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  z.walls.splice(i + 1, 0, { ...z.walls[i] });
+  (z.windows || []).forEach(win => {
+    if (win.wall == null) return;
+    if (win.wall > i) win.wall++;
+    else if (win.wall === i && win.t != null) {
+      if (win.t <= t) win.t = win.t / t;
+      else { win.wall = i + 1; win.t = (win.t - t) / (1 - t); }
+    }
+  });
+  (z.doors || []).forEach(d => {
+    if (d.wall > i) d.wall++;
+    else if (d.wall === i) {
+      if (d.t <= t) d.t = d.t / t;
+      else { d.wall = i + 1; d.t = (d.t - t) / (1 - t); }
+    }
+  });
+  selWall = null; selWalls.clear(); updateWallAllLabel();
+  renderWalls(); renderWindows(); renderDoors(); render(); refreshList();
+}
+
+// set wall i (pts[i] -> pts[i+1]) to an exact typed length: the end corner slides along the
+// wall's direction, so this wall is exact and the following wall absorbs the change.
+function setWallLength(z, i, m) {
+  const a = z.pts[i], b = z.pts[(i + 1) % z.pts.length];
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  if (!len || !(m > 0)) return;
+  const k = mToPx(m) / len;
+  b.x = a.x + (b.x - a.x) * k;
+  b.y = a.y + (b.y - a.y) * k;
+}
+
+let selWalls = new Set();   // multi-selected wall indexes (checkboxes) for bulk type-setting
+function updateWallAllLabel() {
+  P('wallAll').options[0].text = selWalls.size ? 'Set ' + selWalls.size + ' ticked wall' + (selWalls.size > 1 ? 's' : '') + ' to…' : 'Set all walls to…';
+}
+function renderWalls() {
+  const z = zones.find(z => z.id === selectedId);
+  const list = document.getElementById('wallList'), sum = document.getElementById('wallSummary');
+  list.innerHTML = '';
+  if (!z) { sum.textContent = ''; selWalls.clear(); updateWallAllLabel(); return; }
+  ensureWalls(z);
+  selWalls.forEach(i => { if (i >= z.walls.length) selWalls.delete(i); });
+  const typed = z.walls.filter(w => w.type).length;
+  const autoN = z.walls.filter(w => w.type && w.auto !== false).length;
+  sum.textContent = '· ' + typed + '/' + z.walls.length + ' typed' + (autoN ? ' (' + autoN + ' auto)' : '');
+  // ordered front -> right -> bottom -> left (front of building = top of page)
+  wallOrder(z).forEach(({ i, side }) => {
+    const w = z.walls[i];
+    const a = z.pts[i], b = z.pts[(i + 1) % z.pts.length];
+    const len = pxToM(Math.hypot(b.x - a.x, b.y - a.y)).toFixed(2);
+    const row = document.createElement('div');
+    row.className = 'wall-row' + (selWall === i ? ' sel' : '');
+    row.title = side + ' wall — tap the row to highlight it on the plan; tick boxes to set several wall types at once';
+    row.innerHTML = '<input class="wsel" type="checkbox"' + (selWalls.has(i) ? ' checked' : '') + ' title="Tick walls, then use the Set… dropdown below">' +
+      '<b>' + (i + 1) + '</b><input class="len" type="number" step="0.01" min="0.05" inputmode="decimal" value="' + len + '"' +
+      ' title="Wall length (m) — type the corrected figure: corner ' + (((i + 1) % z.pts.length) + 1) + ' slides along this wall and the next wall absorbs the change">' +
+      '<span class="ori" title="' + side + ' wall · faces ' + wallOrientation(z, i).name + '">' + side.charAt(0).toUpperCase() + '</span>' +
+      '<select' + (w.type && w.auto !== false ? ' class="auto" title="Defaulted from geometry — change it to confirm"' : '') + '>' + WALL_TYPES.map(t =>
+        '<option value="' + t + '"' + (w.type === t ? ' selected' : '') + '>' + (t || '— record —') + '</option>').join('') + '</select>' +
+      '<label title="Adjoining another building (hatched on plan)"><input class="adj" type="checkbox"' + (w.party ? ' checked' : '') + '> adj</label>';
+    row.querySelector('select').onchange = e => { pushUndo(); w.type = e.target.value; w.auto = false; render(); renderWalls(); };
+    row.querySelector('.adj').onchange = e => { pushUndo(); w.party = e.target.checked; render(); };
+    const wsel = row.querySelector('.wsel');
+    wsel.onclick = e => e.stopPropagation();
+    wsel.onchange = e => { e.target.checked ? selWalls.add(i) : selWalls.delete(i); updateWallAllLabel(); };
+    const lenEl = row.querySelector('.len');
+    lenEl.onclick = e => e.stopPropagation();
+    lenEl.onchange = e => {
+      pushUndo();
+      const m = parseFloat(e.target.value);
+      if (m > 0.04) setWallLength(z, i, m);
+      autoTypeWalls();
+      render(); renderWalls(); renderWindows(); refreshList();
+      P('pArea').textContent = zoneAreaM2(z).toFixed(1) + ' m²';
+    };
+    row.addEventListener('click', e => {
+      if (['SELECT', 'OPTION', 'INPUT', 'LABEL'].includes(e.target.tagName)) return;
+      selWall = (selWall === i) ? null : i;
+      render(); renderWalls();
+    });
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('wallAll').addEventListener('change', e => {
+  const z = zones.find(z => z.id === selectedId);
+  if (!z || !e.target.value) return;
+  ensureWalls(z);
+  pushUndo();
+  // ticked walls only if any are ticked; otherwise the whole zone
+  const targets = selWalls.size ? [...selWalls].filter(i => i < z.walls.length) : z.walls.map((_, i) => i);
+  targets.forEach(i => { z.walls[i].type = e.target.value; z.walls[i].auto = false; });
+  selWalls.clear();
+  e.target.value = '';
+  updateWallAllLabel();
+  render(); renderWalls();
+});
+
+// ---------- doors sidebar list ----------
+function renderDoors() {
+  const z = zones.find(zz => zz.id === selectedId);
+  const list = P('doorList'), sum = P('doorSummary');
+  list.innerHTML = '';
+  if (!z) { sum.textContent = ''; return; }
+  z.doors = z.doors || [];
+  sum.textContent = z.doors.length ? '· ' + z.doors.length : '· drag the Door chip onto a wall';
+  z.doors.forEach((d, i) => {
+    const internal = doorIsInternal(z, d);
+    const bang = (internal || (d.w && d.h)) ? '' : '<span style="color:#d33;">!</span>';
+    const row = document.createElement('div');
+    row.className = 'wall-row';
+    row.innerHTML = '<b>' + (d.label || 'D' + (i + 1)) + bang + '</b>' +
+      '<span class="len" style="border:none;">wall ' + (d.wall + 1) + ' (' + wallOrientation(z, d.wall).name + ')</span>' +
+      (internal
+        ? '<span class="len" style="border:none;color:#999;font-style:italic;">internal — no dims</span>'
+        : '<input class="dw len" type="number" step="0.05" min="0.3" inputmode="decimal" value="' + (d.w ?? '') + '" placeholder="W" title="Door opening width (m)">' +
+          '<input class="dh len" type="number" step="0.05" min="0.3" inputmode="decimal" value="' + (d.h ?? '') + '" placeholder="H" title="Door opening height (m)">' +
+          '<span style="color:#777;">m</span>') +
+      '<span class="del" style="margin-left:auto;color:#d33;cursor:pointer;font-weight:700;" title="Delete door">&times;</span>';
+    const dwEl = row.querySelector('.dw'), dhEl = row.querySelector('.dh');
+    if (dwEl) dwEl.onchange = e => { pushUndo(); d.w = parseFloat(e.target.value) || null; renderDoors(); render(); };
+    if (dhEl) dhEl.onchange = e => { pushUndo(); d.h = parseFloat(e.target.value) || null; renderDoors(); render(); };
+    row.querySelector('.del').onclick = () => {
+      pushUndo();
+      z.doors.splice(i, 1);
+      relabelDoors(z); renderDoors(); render();
+    };
+    list.appendChild(row);
+  });
+}
+
+// ---------- orientation (window/wall compass facing) ----------
+// The "North" toolbar input = compass bearing of the TOP of the screen (0 = drawn north-up).
+function northDeg() { return parseFloat(document.getElementById('north').value) || 0; }
+function currentFloor() { return Math.max(0, parseInt(document.getElementById('floor').value, 10) || 0); }
+function compassName(deg) {
+  return ['N','NE','E','SE','S','SW','W','NW'][Math.round(((deg % 360) + 360) % 360 / 45) % 8];
+}
+// outward normal of zone edge i -> compass bearing + 8-point name
+function wallOrientation(z, i) {
+  const a = z.pts[i], b = z.pts[(i + 1) % z.pts.length];
+  const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+  let nx = dy / len, ny = -dx / len;
+  if (inPoly(z.pts, (a.x + b.x) / 2 + nx, (a.y + b.y) / 2 + ny)) { nx = -nx; ny = -ny; }
+  const deg = (Math.atan2(nx, -ny) * 180 / Math.PI + northDeg() + 360) % 360;
+  return { deg: Math.round(deg), name: compassName(deg) };
+}
+
+// ---------- windows (site shorthand capture) ----------
+// Accepts Shane's site format, one window per blank-line-separated block:
+//   1.53 2.45            <- overall W H (metres; "10.74 x1.33" also fine)
+//   p1 0.83 x 1.93       <- pane W x H
+//   p2 0.88 x 1.23 x9    <- trailing xN = N identical panes (repeat count)
+//   SGMF                 <- glazing/frame code, kept verbatim
+//   DGPVC 4-19-4         <- code + unit spec also kept verbatim as the code
+// Anything else in the block lands in notes.
+function isCodeLine(line) {
+  const toks = line.split(/\s+/);
+  if (!/^[a-z]{2,12}$/i.test(toks[0])) return false;
+  // remaining tokens must look like unit specs (4-19-4, 6/12/6, 4.8 …), not prose
+  return toks.slice(1).every(t => /^[\d][\d\-\.\/x]*$/i.test(t));
+}
+function parseWindows(text) {
+  const blocks = text.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+  const wins = [];
+  for (const b of blocks) {
+    const win = { w: null, h: null, panes: [], code: '', notes: '' };
+    for (let line of b.split('\n')) {
+      line = line.trim();
+      if (!line) continue;
+      const nums = (line.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+      if (/^p\d*\b/i.test(line) && nums.length >= 2) {
+        const take = /^p\d/i.test(line) ? nums.slice(1) : nums;  // drop the pane index if present
+        if (take.length >= 2) {
+          // third number = repeat count ("x9"); must be a small-ish integer to count as one
+          const n = (take.length >= 3 && take[2] >= 1 && take[2] <= 200 && take[2] === Math.round(take[2]))
+            ? take[2] : 1;
+          win.panes.push({ w: take[0], h: take[1], n });
+        }
+      } else if (nums.length >= 2 && win.w === null && !isCodeLine(line)) {
+        win.w = nums[0]; win.h = nums[1];
+      } else if (isCodeLine(line)) {
+        if (!win.code) win.code = line.toUpperCase();
+        else win.notes = win.notes ? win.notes + ' / ' + line : line;
+      } else {
+        win.notes = win.notes ? win.notes + ' / ' + line : line;
+      }
+    }
+    if (win.w !== null || win.panes.length) wins.push(win);
+  }
+  return wins;
+}
+
+function winAreaM2(w) { return (w.w && w.h) ? w.w * w.h : 0; }
+// a window is complete (loses the "!") when overall W+H are set AND it has at least one complete
+// pane row — OR the surveyor has chosen to ignore panes for it (w.ignorePanes).
+function winHasPane(w) { return (w.panes || []).some(p => p.w > 0 && p.h > 0); }
+function winValid(w) { return !!(w.w > 0 && w.h > 0 && (w.ignorePanes || winHasPane(w))); }
+function winGlazedM2(w) { return w.panes.reduce((s, p) => s + p.w * p.h * (p.n || 1), 0); }
+function winPaneCount(w) { return w.panes.reduce((s, p) => s + (p.n || 1), 0); }
+function winShorthand(w) {
+  const lines = [];
+  if (w.w && w.h) lines.push(w.w + ' ' + w.h);
+  w.panes.forEach((p, i) => lines.push('p' + (i + 1) + ' ' + p.w + ' x ' + p.h + ((p.n || 1) > 1 ? ' x' + p.n : '')));
+  if (w.code) lines.push(w.code);
+  if (w.notes) lines.push(w.notes);
+  return lines.join('\n');
+}
+
+function renderWindows() {
+  rebuildWinTypes();   // keep building-wide labels + the tag tray current
+  const z = zones.find(z => z.id === selectedId);
+  const list = P('winList'), sum = P('winSummary');
+  list.innerHTML = '';
+  if (!z) { sum.textContent = ''; return; }
+  z.windows = z.windows || [];
+  let totGlazed = 0;
+  z.windows.forEach((w, i) => {
+    const a = winAreaM2(w), g = winGlazedM2(w);
+    totGlazed += g;
+    const div = document.createElement('div');
+    div.className = 'win-item';
+    div.title = 'Tap to edit (loads back into the quick-add box)';
+    const paneTxt = w.panes.length
+      ? w.panes.map(p => p.w + '×' + p.h + ((p.n || 1) > 1 ? ' ×' + p.n : '')).join(', ')
+      : 'no panes recorded';
+    const pct = (a && g) ? ' (' + Math.round(g / a * 100) + '% glazed)' : '';
+    ensureWalls(z);
+    const wallOpts = ['<option value="">— place on wall… —</option>'].concat(
+      wallOrder(z)
+        .filter(o => !isInternalWall(z.walls[o.i]) || w.wall === o.i)   // windows: external walls only
+        .map(o => '<option value="' + o.i + '"' + (w.wall === o.i ? ' selected' : '') +
+          '>wall ' + (o.i + 1) + ' — ' + o.side + ' (' + wallOrientation(z, o.i).name + ')' +
+          (isInternalWall(z.walls[o.i]) ? ' ⚠ internal' : '') + '</option>')).join('');
+    div.innerHTML =
+      '<b>' + (w.label || 'W' + (i + 1)) + (winValid(w) ? '' : '<span style="color:#d33;">!</span>') + '</b> — ' +
+      (w.w ? w.w + ' × ' + w.h + ' m' : 'overall size?') +
+      (w.code ? ' · ' + esc(w.code) : '') +
+      '<span class="drg" title="Drag onto a wall of this zone to place the window">&#10021;</span>' +
+      '<span class="cpy" title="Copy window (paste into this or another zone)">&#10697;</span>' +
+      '<span class="del" title="Delete window">&times;</span>' +
+      '<div class="sub">panes (' + winPaneCount(w) + '): ' + esc(paneTxt) + ' · glazed ' + g.toFixed(2) + ' m²' + pct +
+      (w.notes ? ' · ' + esc(w.notes) : '') + '</div>' +
+      '<div class="sub">location: <select class="wwall">' + wallOpts + '</select>' +
+      (w.wall != null && z.pts[w.wall] !== undefined
+        ? ' → faces <b style="color:#0b7285">' + wallOrientation(z, w.wall).name + ' (' + wallOrientation(z, w.wall).deg + '°)</b>'
+        : ' <span style="color:#e6a23c">no orientation yet</span>') + '</div>';
+    div.querySelector('.del').onclick = e => {
+      e.stopPropagation();
+      pushUndo();
+      z.windows.splice(i, 1);
+      relabelWindows(z); renderWindows(); render();
+    };
+    div.querySelector('.cpy').onclick = e => {
+      e.stopPropagation();
+      winClipboard = JSON.parse(JSON.stringify({ ...w, label: undefined, wall: null }));
+      updatePasteBtn();
+    };
+    const drg = div.querySelector('.drg');
+    drg.addEventListener('click', e => e.stopPropagation());
+    drg.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const r = cv.getBoundingClientRect();
+      dragWin = { zid: z.id, idx: i, cx: e.clientX - r.left, cy: e.clientY - r.top };
+    });
+    const wsel = div.querySelector('.wwall');
+    wsel.onclick = e => e.stopPropagation();
+    wsel.onchange = e => {
+      pushUndo();
+      w.wall = e.target.value === '' ? null : +e.target.value;
+      render(); renderWindows();
+    };
+    div.onclick = () => {     // recall into the quick-add box for editing
+      pushUndo();
+      P('winQuick').value = winShorthand(w);
+      z.windows.splice(i, 1);
+      relabelWindows(z); renderWindows(); render();
+    };
+    list.appendChild(div);
+  });
+  sum.textContent = z.windows.length
+    ? '· ' + z.windows.length + ' · glazed ' + totGlazed.toFixed(2) + ' m²'
+    : (z.noWindows ? '· none (confirmed)' : '· not recorded');
+  const noneBox = P('winNone');
+  if (z.windows.length) { z.noWindows = false; noneBox.checked = false; noneBox.disabled = true; }
+  else { noneBox.checked = !!z.noWindows; noneBox.disabled = false; }
+  renderWinTable();
+}
+
+// ---------- window table entry (alternative to the shorthand box) ----------
+let winTableOpen = false;
+function panesCell(w) {
+  return (w.panes || []).map(p => p.w + 'x' + p.h + ((p.n || 1) > 1 ? ' x' + p.n : '')).join('; ');
+}
+function parsePanesCell(s) {
+  return String(s).split(/[;,]/).map(t => t.trim()).filter(Boolean).map(t => {
+    const nums = (t.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+    if (nums.length < 2) return null;
+    const n = (nums.length >= 3 && nums[2] >= 1 && nums[2] <= 200 && nums[2] === Math.round(nums[2])) ? nums[2] : 1;
+    return { w: nums[0], h: nums[1], n };
+  }).filter(Boolean);
+}
+const escAttr = s => esc(s).replace(/"/g, '&quot;');
+function renderWinTable() {
+  const div = P('winTable');
+  const z = zones.find(zz => zz.id === selectedId);
+  P('winTableBtn').textContent = winTableOpen ? '✕ Close table' : '⊞ Table entry';
+  if (!winTableOpen || !z) { div.style.display = 'none'; div.innerHTML = ''; return; }
+  div.style.display = 'block';
+  div.innerHTML = '';
+  const tbl = document.createElement('table');
+  tbl.innerHTML = '<tr><th></th><th>W m</th><th>H m</th><th>Panes (WxH xN; &hellip;)</th><th>Code</th><th>Wall</th><th></th></tr>';
+  (z.windows || []).forEach((w, i) => {
+    const tr = document.createElement('tr');
+    ensureWalls(z);
+    const wallOpts = ['<option value="">—</option>'].concat(
+      wallOrder(z)
+        .filter(o => !isInternalWall(z.walls[o.i]) || w.wall === o.i)   // windows: external walls only
+        .map(o => '<option value="' + o.i + '"' + (w.wall === o.i ? ' selected' : '') +
+          '>' + (o.i + 1) + ' ' + o.side +
+          (isInternalWall(z.walls[o.i]) ? ' ⚠int' : '') + '</option>')).join('');
+    tr.innerHTML = '<td><b>' + (w.label || 'W' + (i + 1)) + '</b></td>' +
+      '<td><input data-k="w" type="number" step="0.01" inputmode="decimal" value="' + (w.w ?? '') + '"></td>' +
+      '<td><input data-k="h" type="number" step="0.01" inputmode="decimal" value="' + (w.h ?? '') + '"></td>' +
+      '<td><input data-k="panes" value="' + escAttr(panesCell(w)) + '" placeholder="0.83x1.93; 0.4x2.34 x2"></td>' +
+      '<td><input data-k="code" value="' + escAttr(w.code || '') + '" placeholder="SGMF"></td>' +
+      '<td><select data-k="wall">' + wallOpts + '</select></td>' +
+      '<td class="delcell" title="Delete window">&times;</td>';
+    tr.querySelectorAll('input,select').forEach(el => {
+      el.onchange = () => {
+        pushUndo();
+        const k = el.dataset.k;
+        if (k === 'w' || k === 'h') w[k] = parseFloat(el.value) || null;
+        else if (k === 'panes') w.panes = parsePanesCell(el.value);
+        else if (k === 'code') w.code = el.value.trim().toUpperCase();
+        else if (k === 'wall') w.wall = el.value === '' ? null : +el.value;
+        renderWindows(); render(); refreshList();
+      };
+    });
+    tr.querySelector('.delcell').onclick = () => {
+      pushUndo();
+      z.windows.splice(i, 1);
+      relabelWindows(z); renderWindows(); render(); refreshList();
+    };
+    tbl.appendChild(tr);
+  });
+  div.appendChild(tbl);
+  const add = document.createElement('button');
+  add.id = 'winTableAdd';
+  add.textContent = '+ add window row';
+  add.onclick = () => {
+    pushUndo();
+    z.windows = z.windows || [];
+    const nw = { w: null, h: null, panes: [], code: '', notes: '', wall: null };
+    applyWinCode(nw);
+    z.windows.push(nw);
+    relabelWindows(z);
+    renderWindows(); refreshList();
+  };
+  div.appendChild(add);
+}
+// Window numbering is SEQUENTIAL by creation order — first window made = W1, second = W2, …
+// Each window keeps its number for the life of the job (w.num, assigned once). winTypes still
+// groups distinct SIZES for the "Windows ▾" place-another tray.
+let winTypes = [];
+let winNumNext = 1;            // next sequential window number
+function winSig(w) {
+  return [w.w, w.h, (w.code || '').toUpperCase(),
+          (w.panes || []).map(p => p.w + 'x' + p.h + 'x' + (p.n || 1)).join(';')].join('|');
+}
+function rebuildWinTypes() {
+  winTypes = [];
+  const sizes = new Set();
+  zones.forEach(z => (z.windows || []).forEach(w => {
+    if (w.num == null) w.num = winNumNext++;   // first sighting -> next number, kept forever (creation order)
+    w.label = 'W' + w.num;
+    if (w.w && w.h) {
+      const sig = winSig(w);
+      if (!sizes.has(sig)) { sizes.add(sig); winTypes.push({ w: w.w, h: w.h, panes: w.panes || [], code: w.code || '', sig }); }
+    }
+  }));
+  if (openMenu === 'wintypes') renderSymDrop();
+}
+// on load, continue numbering after the highest saved window number
+function seedWinNums() {
+  winNumNext = 1;
+  zones.forEach(z => (z.windows || []).forEach(w => { if (w.num != null && w.num + 1 > winNumNext) winNumNext = w.num + 1; }));
+}
+function relabelWindows() { rebuildWinTypes(); }
+
+// Shane's six required survey items per zone (11 Jun): activity, heating, lighting,
+// room height, hot water (any choice incl. "None" counts), windows (recorded OR
+// confirmed none). Cooling/ventilation are captured but not gating.
+function zoneRecorded(z) {
+  return [
+    !!z.activity, !!z.heating, !!z.lighting,
+    (z.height || 0) > 0, !!z.hws,
+    ((z.windows || []).length > 0 || !!z.noWindows)
+  ].filter(Boolean).length;
+}
+const ZONE_CHECKS = 6;
+
+document.getElementById('winNone').addEventListener('change', e => {
+  const z = zones.find(z => z.id === selectedId);
+  if (!z) return;
+  z.noWindows = e.target.checked;
+  renderWindows(); refreshList();
+});
+
+// window clipboard — copy a window once, paste it into any zone any number of times
+let winClipboard = null;
+function updatePasteBtn() {
+  const btn = document.getElementById('winPaste');
+  if (winClipboard) {
+    btn.style.display = 'block';
+    btn.textContent = 'Paste ' + (winClipboard.w ? winClipboard.w + ' × ' + winClipboard.h + ' m' : 'window') +
+      (winClipboard.code ? ' · ' + winClipboard.code : '');
+  } else btn.style.display = 'none';
+}
+document.getElementById('winPaste').addEventListener('click', () => {
+  const z = zones.find(z => z.id === selectedId);
+  if (!z || !winClipboard) return;
+  pushUndo();
+  z.windows = z.windows || [];
+  z.windows.push(JSON.parse(JSON.stringify(winClipboard)));
+  relabelWindows(z);
+  renderWindows(); render();
+});
+
+document.getElementById('winTableBtn').addEventListener('click', () => {
+  winTableOpen = !winTableOpen;
+  renderWinTable();
+});
+
+// (registered here with getElementById — the P() helper is declared further down the script)
+document.getElementById('winAdd').addEventListener('click', () => {
+  const z = zones.find(z => z.id === selectedId);
+  if (!z) return;
+  const wins = parseWindows(document.getElementById('winQuick').value);
+  if (!wins.length) return alert('Nothing recognised — first line: overall W H, then p1 W x H per pane, then the glazing code.');
+  pushUndo();
+  z.windows = z.windows || [];
+  wins.forEach(w => { applyWinCode(w); z.windows.push(w); });
+  relabelWindows(z);
+  document.getElementById('winQuick').value = '';
+  renderWindows();
+});
+
+// ---------- undo (snapshot stack) ----------
+// pushUndo() captures the PRE-mutation state. Called liberally — identical consecutive
+// snapshots are deduped, so a click that changes nothing never pollutes the stack.
+let undoStack = [];
+function serializeState() {
+  return JSON.stringify({ zones, notes: notes.map(({ _box, ...r }) => r), nextId, globals, glazingCodes });
+}
+function pushUndo() {
+  const s = serializeState();
+  if (undoStack[undoStack.length - 1] !== s) {
+    undoStack.push(s);
+    if (undoStack.length > 50) undoStack.shift();
+  }
+}
+function undo() {
+  // drawing in progress: Undo removes the LAST CORNER (the only route on a keyboard-less iPad)
+  if (poly && poly.pts.length) {
+    poly.pts.pop();
+    if (!poly.pts.length) poly = null;
+    lenBuf = ''; clearAng(); updateLenbox(); render();
+    return;
+  }
+  const cur = serializeState();
+  while (undoStack.length && undoStack[undoStack.length - 1] === cur) undoStack.pop();
+  if (!undoStack.length) return;
+  const d = JSON.parse(undoStack.pop());
+  zones = d.zones; notes = d.notes || []; nextId = d.nextId || 1;
+  globals = d.globals || globals;
+  glazingCodes = d.glazingCodes || glazingCodes;
+  refreshGlobalInputs(); renderGlazList();
+  if (popCtx) closePop();
+  poly = null; lenBuf = ''; updateLenbox();
+  if (!zones.find(z => z.id === selectedId)) selectedId = null;
+  select(selectedId);   // re-renders panel, walls, windows, doors, plan, schedule
+}
+
+// ---------- floating popup (wall window dims / door dims / note text) ----------
+const floatPop = document.getElementById('floatPop');
+let popCtx = null;
+function openPop(cx, cy, html) {
+  floatPop.innerHTML = '<span class="x">&times;</span>' + html;
+  floatPop.querySelector('.x').onclick = closePop;
+  floatPop.style.display = 'block';
+  const sx = toSX(cx), sy = toSY(cy);   // callers pass world coords
+  floatPop.style.left = Math.max(8, Math.min(wrap.clientWidth - 296, sx + 14)) + 'px';
+  floatPop.style.top = Math.max(8, Math.min(wrap.clientHeight - 120, sy + 14)) + 'px';
+}
+function closePop() {
+  if (popCtx && popCtx.kind === 'note') {
+    const n = notes[popCtx.i];
+    if (n && !(n.text || '').trim()) notes.splice(popCtx.i, 1);   // abandoned empty note
+  }
+  popCtx = null;
+  floatPop.style.display = 'none';
+  floatPop.innerHTML = '';
+  render();
+}
+
+// click a wall -> popup: window dimensions (external walls) + split-here (any wall)
+function openWallPop(z, i, cx, cy, splitT) {
+  popCtx = { kind: 'wall', zid: z.id, wall: i, cx, cy, splitT: splitT || 0.5 };
+  renderWallPop();
+}
+function renderWallPop() {
+  if (!popCtx || popCtx.kind !== 'wall') return;
+  const z = zones.find(zz => zz.id === popCtx.zid);
+  if (!z) return closePop();
+  const i = popCtx.wall;
+  const internal = isInternalWall(z.walls[i]);
+  let html = '<h3>' + esc(z.name) + ' — wall ' + (i + 1) + ' (' + wallOrientation(z, i).name + ')' + (internal ? ' · internal' : ' windows') + '</h3>';
+  if (!internal) {
+    const wins = (z.windows || []).map((w, wi) => ({ w, wi })).filter(o => o.w.wall === i);
+    html += '<table><tr><th></th><th>W m</th><th>H m</th><th>Panes</th><th>Code</th><th></th></tr>';
+    wins.forEach(o => {
+      html += '<tr data-wi="' + o.wi + '"><td><b>' + (o.w.label || '?') + '</b></td>' +
+        '<td><input data-k="w" type="number" step="0.01" inputmode="decimal" value="' + (o.w.w ?? '') + '"></td>' +
+        '<td><input data-k="h" type="number" step="0.01" inputmode="decimal" value="' + (o.w.h ?? '') + '"></td>' +
+        '<td><input data-k="panes" value="' + escAttr(panesCell(o.w)) + '" placeholder="0.8x1.2 x2"></td>' +
+        '<td><input data-k="code" value="' + escAttr(o.w.code || '') + '"></td>' +
+        '<td class="delcell" title="Delete window">&times;</td></tr>';
+    });
+    html += '</table><button class="rowbtn" id="popAddWin">+ add window on this wall</button>';
+  } else {
+    html += '<div style="color:#777;font-size:11px;margin-bottom:4px;">Windows go on external walls. Split this wall to type or mark parts of it differently.</div>';
+  }
+  html += '<button class="rowbtn" id="popSplit" title="Insert a corner at the clicked point — each half keeps this wall\'s type, then set adj/type per half">&#9986; Split wall at this point</button>';
+  openPop(popCtx.cx, popCtx.cy, html);
+  floatPop.querySelector('#popSplit').onclick = () => {
+    const zz = zones.find(q => q.id === popCtx.zid);
+    const wi = popCtx.wall, st = popCtx.splitT;
+    closePop();
+    if (zz) splitWall(zz, wi, st);
+  };
+  if (internal) return;
+  floatPop.querySelectorAll('tr[data-wi]').forEach(tr => {
+    const w = z.windows[+tr.dataset.wi];
+    tr.querySelectorAll('input').forEach(el => {
+      el.onchange = () => {
+        pushUndo();
+        const k = el.dataset.k;
+        if (k === 'w' || k === 'h') w[k] = parseFloat(el.value) || null;
+        else if (k === 'panes') w.panes = parsePanesCell(el.value);
+        else if (k === 'code') w.code = el.value.trim().toUpperCase();
+        renderWindows(); render(); refreshList();
+      };
+    });
+    tr.querySelector('.delcell').onclick = () => {
+      pushUndo();
+      z.windows.splice(+tr.dataset.wi, 1);
+      relabelWindows(z); renderWindows(); render(); refreshList(); renderWallPop();
+    };
+  });
+  floatPop.querySelector('#popAddWin').onclick = () => {
+    pushUndo();
+    z.windows = z.windows || [];
+    const nw = { w: null, h: null, panes: [], code: '', notes: '', wall: i, t: null };
+    applyWinCode(nw);
+    z.windows.push(nw);
+    relabelWindows(z); renderWindows(); render(); refreshList(); renderWallPop();
+  };
+}
+
+// click a door -> its dimensions (red ! on plan until both are in).
+// Internal doors need no dimensions: just an info line + delete.
+function openDoorPop(z, i, cx, cy, hi) {
+  popCtx = { kind: 'door', zid: z.id, di: i, cx, cy };
+  const d = z.doors[i];
+  if (!d) return closePop();
+  if (doorIsInternal(z, d)) {
+    const html2 = '<h3>' + (d.label || 'Door') + ' — internal</h3>' +
+      '<div style="color:#777;font-size:11px;margin-bottom:4px;">Internal door — no dimensions required.</div>' +
+      '<button class="rowbtn" id="popDoorDel" style="color:#d33;border-color:#d33;">Delete door</button>';
+    openPop(cx, cy, html2);
+    floatPop.querySelector('#popDoorDel').onclick = () => {
+      pushUndo();
+      z.doors.splice(i, 1);
+      relabelDoors(z); renderDoors(); closePop();
+    };
+    return;
+  }
+  const html = '<h3>' + (d.label || 'Door') + ' — dimensions</h3>' +
+    '<table><tr><th>Width m</th><th>Height m</th></tr><tr>' +
+    '<td><input id="popDw" type="number" step="0.05" inputmode="decimal" value="' + (d.w ?? '') + '" placeholder="0.9"></td>' +
+    '<td><input id="popDh" type="number" step="0.05" inputmode="decimal" value="' + (d.h ?? '') + '" placeholder="2.1"></td></tr></table>' +
+    '<button class="rowbtn" id="popDoorDel" style="color:#d33;border-color:#d33;">Delete door</button>';
+  openPop(cx, cy, html);
+  floatPop.querySelector('#popDw').onchange = e => { pushUndo(); d.w = parseFloat(e.target.value) || null; renderDoors(); render(); };
+  floatPop.querySelector('#popDh').onchange = e => { pushUndo(); d.h = parseFloat(e.target.value) || null; renderDoors(); render(); };
+  if (hi) { const el = floatPop.querySelector(hi); if (el) el.classList.add('kpactive'); }
+  floatPop.querySelector('#popDoorDel').onclick = () => {
+    pushUndo();
+    z.doors.splice(i, 1);
+    relabelDoors(z); renderDoors(); closePop();
+  };
+}
+
+// click a window symbol -> its own dimension box: overall W/H + code, then five pane rows
+// (W, H, No. — pane count defaults to 1 unless changed)
+function openWinPop(z, wi, cx, cy, hi) {
+  popCtx = { kind: 'win', zid: z.id, wi, cx, cy };
+  const w = z.windows[wi];
+  if (!w) return closePop();
+  const PANE_ROWS = Math.max(5, (w.panes || []).length);
+  // Code is a pull-down of the project glazing types (managed in the sidebar); include the window's
+  // own code if it isn't in the list, so nothing is lost.
+  const codeOpts = [''].concat(glazingCodes);
+  if (w.code && !codeOpts.includes(w.code)) codeOpts.push(w.code);
+  const codeSelect = '<select id="pwC">' + codeOpts.map(c =>
+    '<option value="' + escAttr(c) + '"' + (c === (w.code || '') ? ' selected' : '') + '>' + (c === '' ? '— code —' : esc(c)) + '</option>').join('') + '</select>';
+  let html = '<h3>' + (w.label || 'W?') + ' — dimensions</h3>' +
+    '<table><tr><th>Overall W m</th><th>H m</th><th>Code</th></tr><tr>' +
+    '<td><input id="pwW" type="number" step="0.01" inputmode="decimal" value="' + (w.w ?? '') + '"></td>' +
+    '<td><input id="pwH" type="number" step="0.01" inputmode="decimal" value="' + (w.h ?? '') + '"></td>' +
+    '<td>' + codeSelect + '</td>' +
+    '</tr></table>' +
+    '<table style="margin-top:6px;"><tr><th>Pane W m</th><th>H m</th><th>No.</th></tr>';
+  for (let k = 0; k < PANE_ROWS; k++) {
+    const p = (w.panes || [])[k] || {};
+    html += '<tr>' +
+      '<td><input data-pk="w" data-row="' + k + '" type="number" step="0.01" inputmode="decimal" value="' + (p.w ?? '') + '"></td>' +
+      '<td><input data-pk="h" data-row="' + k + '" type="number" step="0.01" inputmode="decimal" value="' + (p.h ?? '') + '"></td>' +
+      '<td><input data-pk="n" data-row="' + k + '" type="number" step="1" min="1" inputmode="numeric" value="' + ((p.n || 1) !== 1 ? p.n : '') + '" placeholder="1" title="Number of identical panes — 1 unless changed"></td>' +
+      '</tr>';
+  }
+  html += '</table><button class="rowbtn" id="pwDel" style="color:#d33;border-color:#d33;">Delete window</button>';
+  openPop(cx, cy, html);
+  const commit = () => {
+    w.w = parseFloat(floatPop.querySelector('#pwW').value) || null;
+    w.h = parseFloat(floatPop.querySelector('#pwH').value) || null;
+    w.code = floatPop.querySelector('#pwC').value;   // glazing code picked from the project list
+    const panes = [];
+    for (let k = 0; k < PANE_ROWS; k++) {
+      const pw = parseFloat(floatPop.querySelector('[data-pk="w"][data-row="' + k + '"]').value);
+      const ph = parseFloat(floatPop.querySelector('[data-pk="h"][data-row="' + k + '"]').value);
+      const pn = parseInt(floatPop.querySelector('[data-pk="n"][data-row="' + k + '"]').value, 10);
+      if (pw > 0 && ph > 0) panes.push({ w: pw, h: ph, n: pn >= 1 ? pn : 1 });
+    }
+    w.panes = panes;
+    renderWindows(); render(); refreshList();
+  };
+  floatPop.querySelectorAll('input, select').forEach(el => { el.onchange = () => { pushUndo(); commit(); }; });
+  floatPop.querySelector('#pwDel').onclick = () => {
+    pushUndo();
+    z.windows.splice(wi, 1);
+    relabelWindows(z); renderWindows(); render(); refreshList(); closePop();
+  };
+  if (hi) { const el = floatPop.querySelector(hi); if (el) el.classList.add('kpactive'); }
+}
+
+// model-number note attached to a placed symbol (hot-water cylinder / gas WH / gas combi)
+function openSymNotePop(z, si, cx, cy) {
+  const s = (z.symbols || [])[si];
+  if (!s) return;
+  popCtx = { kind: 'symnote', zid: z.id, si, cx, cy };
+  const nm = SYM[s.code] ? SYM[s.code].name : s.code;
+  const html = '<h3>' + esc(nm) + ' — model</h3>' +
+    '<input id="symNoteIn" value="' + escAttr(s.note || '') + '" placeholder="Model / type number">' +
+    '<button class="rowbtn" id="symNoteOk" style="color:var(--ember);border-color:var(--ember);margin-top:6px;">Done</button>';
+  openPop(cx, cy, html);
+  const commit = () => { s.note = floatPop.querySelector('#symNoteIn').value; render(); refreshList(); };
+  floatPop.querySelector('#symNoteIn').onchange = () => { pushUndo(); commit(); };
+  floatPop.querySelector('#symNoteOk').onclick = () => { pushUndo(); commit(); closePop(); };
+}
+
+// tap a note's text box -> edit the text
+function openNotePop(i, cx, cy) {
+  pushUndo();   // pre-edit text state
+  popCtx = { kind: 'note', i, cx, cy };
+  const n = notes[i];
+  const html = '<h3>Note</h3>' +
+    '<textarea id="popNoteTx" rows="3" placeholder="Type the note&hellip;">' + esc(n.text || '') + '</textarea>' +
+    '<button class="rowbtn" id="popNoteOk" style="color:var(--ember);border-color:var(--ember);">Done</button>' +
+    '<button class="rowbtn" id="popNoteDel" style="color:#d33;border-color:#d33;">Delete note</button>';
+  openPop(cx, cy, html);
+  const tx = floatPop.querySelector('#popNoteTx');
+  tx.focus();
+  tx.oninput = () => { n.text = tx.value; render(); };
+  floatPop.querySelector('#popNoteOk').onclick = closePop;
+  floatPop.querySelector('#popNoteDel').onclick = () => { pushUndo(); notes.splice(i, 1); popCtx = null; closePop(); };
+}
+
+// ---------- palette + card drags (symbols in, windows onto walls) ----------
+// These start OUTSIDE the canvas, so they run on document-level pointer listeners.
+// delegated — covers the fixed chips AND the dynamically-built menu trays
+document.addEventListener('pointerdown', e => {
+  const ch = e.target.closest ? e.target.closest('.symchip') : null;
+  if (!ch) return;
+  e.preventDefault();
+  const r = cv.getBoundingClientRect();
+  const base = { cx: toWX(e.clientX - r.left), cy: toWY(e.clientY - r.top) };
+  dragSym = (ch.dataset.wt != null)
+    ? { code: 'WINTYPE', wt: +ch.dataset.wt, ...base }   // a window tag — places that size again
+    : { code: ch.dataset.code, ...base };
+  render();
+});
+
+// the Lights / Heating / Hot water pull-down trays
+let openMenu = null;
+function renderSymDrop() {
+  const d = P('symdrop');
+  document.querySelectorAll('.symmenu').forEach(m => m.classList.toggle('open', m.dataset.menu === openMenu));
+  if (!openMenu || mode !== 'select') { d.style.display = 'none'; d.innerHTML = ''; return; }
+  if (openMenu === 'wintypes') {   // dynamic: one draggable tag per dimensioned window size
+    d.innerHTML = winTypes.length
+      ? winTypes.map((t, i) =>
+          '<div class="symchip" data-wt="' + i + '" style="border-color:#0b7285;color:#0b7285" title="Drag onto an external wall to place another window this size (' +
+          t.w + '×' + t.h + ' m' + (t.code ? ' ' + esc(t.code) : '') + ') — it gets the next W number">' +
+          t.w + '×' + t.h + (t.code ? ' ' + esc(t.code) : '') + '</div>').join('')
+      : '<span style="font-size:11px;color:#999;padding:4px 6px;">Give a window its dimensions and it becomes a draggable size tag here.</span>';
+    d.style.display = 'flex';
+    return;
+  }
+  d.innerHTML = SYM_MENUS[openMenu].map(c =>
+    '<div class="symchip" data-code="' + c + '" style="border-color:' + SYM[c].col + ';color:' + SYM[c].col +
+    '" title="' + SYM[c].name + ' — drag into a zone (marks the fitting AND records the zone&#39;s field)">' +
+    SYM[c].label + '</div>').join('');
+  d.style.display = 'flex';
+}
+document.querySelectorAll('.symmenu').forEach(m => {
+  m.addEventListener('click', () => {
+    openMenu = openMenu === m.dataset.menu ? null : m.dataset.menu;
+    renderSymDrop();
+  });
+});
+document.addEventListener('pointermove', e => {
+  if (!dragSym && !dragWin) return;
+  const r = cv.getBoundingClientRect();
+  const o = dragSym || dragWin;
+  o.cx = toWX(e.clientX - r.left); o.cy = toWY(e.clientY - r.top);
+  render();
+});
+document.addEventListener('pointerup', e => {
+  if (dragSym) {
+    pushUndo();
+    const onCanvas = onScreenW(dragSym.cx, dragSym.cy);
+    if (dragSym.code === 'DOOR') {
+      // doors go on internal AND external walls; dimensions start empty (! until entered)
+      const hit = onCanvas ? nearestWallAnyZone(dragSym.cx, dragSym.cy, 26 / view.k) : null;
+      if (hit) {
+        hit.z.doors = hit.z.doors || [];
+        hit.z.doors.push({ wall: hit.i, t: Math.min(0.92, Math.max(0.08, hit.t)), w: null, h: null });
+        relabelDoors(hit.z);
+        renderDoors();
+        // internal doors need no dimensions — only external drops chain straight into width -> height
+        if (!isInternalWall(hit.z.walls[hit.i])) doorEntryChain(hit.z, hit.z.doors[hit.z.doors.length - 1], dragSym.cx, dragSym.cy);
+      }
+    } else if (dragSym.code === 'WINTYPE') {
+      // a window TAG dropped on an EXTERNAL wall — places another window of that exact size.
+      // The wall hit-test (26px) is the gate; no onCanvas needed (a drop over the sidebar finds no wall).
+      const t = winTypes[dragSym.wt];
+      const hit = t ? nearestExternalWallAnyZone(dragSym.cx, dragSym.cy, 26 / view.k) : null;
+      if (hit) {
+        hit.z.windows = hit.z.windows || [];
+        hit.z.windows.push({ w: t.w, h: t.h, panes: JSON.parse(JSON.stringify(t.panes || [])),
+                             code: t.code, notes: '', wall: hit.i, t: Math.min(0.92, Math.max(0.08, hit.t)) });
+        relabelWindows();
+        if (hit.z.id === selectedId) renderWindows();
+        refreshList();
+      }
+    } else if (dragSym.code === 'WIN') {
+      // window dropped on an EXTERNAL wall — dimensionless (W1!), click it later for the table
+      const hit = onCanvas ? nearestExternalWallAnyZone(dragSym.cx, dragSym.cy, 26 / view.k) : null;
+      if (hit) {
+        hit.z.windows = hit.z.windows || [];
+        const nw = { w: null, h: null, panes: [], code: '', notes: '',
+                     wall: hit.i, t: Math.min(0.92, Math.max(0.08, hit.t)) };
+        applyWinCode(nw);
+        hit.z.windows.push(nw);
+        relabelWindows(hit.z);
+        select(hit.z.id);
+        renderWindows(); refreshList();
+        winEntryChain(hit.z, nw, dragSym.cx, dragSym.cy);   // chain W -> H -> panes, table visible
+      }
+    } else if (dragSym.code === 'NOTE') {
+      if (onCanvas) {
+        notes.push({ x: dragSym.cx, y: dragSym.cy, tx: Math.max(40, dragSym.cx - 70), ty: Math.max(20, dragSym.cy - 50), text: '' });
+        openNotePop(notes.length - 1, dragSym.cx, dragSym.cy);
+      }
+    } else if (SYM[dragSym.code] && (SYM[dragSym.code].wallType || SYM[dragSym.code].wallParty)) {
+      // wall chip dropped ONTO a wall -> sets construction type and/or the adjoining flag.
+      // A shared wall is one physical wall: the coincident edge on the neighbouring zone gets it too.
+      const hit = onCanvas ? nearestWallAnyZone(dragSym.cx, dragSym.cy, 26 / view.k) : null;
+      if (hit) {
+        const s = SYM[dragSym.code];
+        const targets = [{ z: hit.z, i: hit.i }, ...coincidentEdges(hit.z, hit.i)];
+        targets.forEach(t => {
+          ensureWalls(t.z);
+          if (s.wallType) { t.z.walls[t.i].type = s.wallType; t.z.walls[t.i].auto = false; }
+          if (s.wallParty) t.z.walls[t.i].party = true;   // diagonal hatch — Shane's paper convention
+        });
+        if (targets.some(t => t.z.id === selectedId)) { renderWalls(); renderWindows(); renderDoors(); }
+        refreshList();
+      }
+    } else {
+      const z = onCanvas ? zoneAt(dragSym.cx, dragSym.cy) : null;
+      if (z) {
+        z.symbols = z.symbols || [];
+        // light / heating / hot-water chips also record the zone's survey field (manual — overrides the global)
+        const s = SYM[dragSym.code];
+        if (s && s.set) {
+          // one fitting per survey field — a new chip REPLACES any existing one of the same kind
+          z.symbols = z.symbols.filter(sm => {
+            const ss = SYM[sm.code];
+            return !(ss && ss.set && ss.set.field === s.set.field);
+          });
+          z.symbols.push({ code: dragSym.code, x: dragSym.cx, y: dragSym.cy, placed: true });
+          z[s.set.field] = s.set.value;
+          (z.autoF = z.autoF || {})[s.set.field] = false;
+          if (z.id === selectedId) select(z.id);
+          refreshList();
+          // certain hot-water types carry a model number — prompt for it, store on the symbol
+          if (s.note) openSymNotePop(z, z.symbols.length - 1, dragSym.cx, dragSym.cy);
+        } else {
+          z.symbols.push({ code: dragSym.code, x: dragSym.cx, y: dragSym.cy });
+        }
+      }
+    }
+    dragSym = null;
+    render();
+  }
+  if (dragWin) {
+    pushUndo();
+    const z = zones.find(zz => zz.id === dragWin.zid);
+    const onCanvas = onScreenW(dragWin.cx, dragWin.cy);
+    if (z && onCanvas && z.windows[dragWin.idx]) {
+      const hit = nearestExternalWall(z, dragWin.cx, dragWin.cy, 26 / view.k);   // windows: external walls only
+      if (hit) {
+        const w = z.windows[dragWin.idx];
+        w.wall = hit.i;
+        w.t = Math.min(0.92, Math.max(0.08, hit.t));   // exact position along the wall
+      }
+    }
+    dragWin = null;
+    renderWindows(); render();
+  }
+});
+
+// ---------- selection + properties panel ----------
+const P = id => document.getElementById(id);
+const fields = ['pName','pActivity','pHeight','pHeating','pCooling','pLighting','pVent','pHws','pNotes'];
+const keys =   ['name','activity','height','heating','cooling','lighting','vent','hws','notes'];
+
+function select(id) {
+  selectedId = id;
+  selWall = null;
+  selWalls.clear();
+  updateWallAllLabel();
+  const z = zones.find(z => z.id === id);
+  P('props').style.display = z ? 'block' : 'none';
+  P('emptyNote').style.display = z ? 'none' : 'block';
+  if (z) {
+    fields.forEach((f, i) => P(f).value = z[keys[i]]);
+    P('pHeight').value = z.height || '';   // 0 = not recorded -> show empty, not "0"
+    P('pArea').textContent = zoneAreaM2(z).toFixed(1) + ' m²';
+    // grey-italic = value inherited from Global defaults, not recorded on site
+    [['pLighting', 'lighting'], ['pHeating', 'heating'], ['pHeight', 'height']].forEach(([f, k]) =>
+      P(f).classList.toggle('autoF', !!(z.autoF && z.autoF[k] && z[k])));
+  }
+  renderWindows();
+  renderWalls();
+  renderDoors();
+  render();
+  refreshList();
+}
+
+const AUTOF_FIELDS = { pLighting: 'lighting', pHeating: 'heating', pHeight: 'height' };
+fields.forEach((f, i) => {
+  P(f).addEventListener('input', () => {
+    const z = zones.find(z => z.id === selectedId);
+    if (!z) return;
+    if (P(f).tagName === 'SELECT') pushUndo();
+    z[keys[i]] = (f === 'pHeight') ? parseFloat(P(f).value) || 0 : P(f).value;
+    if (AUTOF_FIELDS[f]) {   // amended by hand — global default no longer applies here
+      (z.autoF = z.autoF || {})[AUTOF_FIELDS[f]] = false;
+      P(f).classList.remove('autoF');
+    }
+    if (f === 'pLighting' || f === 'pHeating') syncFittingSymbols(z);   // keep the plan chip in step
+    render(); refreshList();
+  });
+});
+
+// ---------- global defaults wiring ----------
+function refreshGlobalInputs() {
+  P('gLighting').value = globals.lighting || '';
+  P('gHeating').value = globals.heating || '';
+  P('gHeight').value = globals.height || '';
+}
+[['gLighting', 'lighting'], ['gHeating', 'heating'], ['gHeight', 'height']].forEach(([id, f]) => {
+  P(id).addEventListener('change', () => {
+    pushUndo();
+    globals[f] = P(id).value;
+    applyGlobals();
+    select(selectedId);   // refresh panel + grey-italic flags
+    refreshList(); render();
+  });
+});
+
+// ---------- glazing types (project-level code list, picked in the window table) ----------
+function renderGlazList() {
+  const el = P('glazList');
+  el.innerHTML = glazingCodes.length
+    ? glazingCodes.map((c, i) => '<span class="glazchip">' + esc(c) + '<span class="gx" data-i="' + i + '">&times;</span></span>').join('')
+    : '<span style="color:#999;font-size:11px;">No glazing types yet — add one above.</span>';
+  el.querySelectorAll('.gx').forEach(x => x.onclick = () => {
+    glazingCodes.splice(+x.dataset.i, 1);
+    renderGlazList();
+    if (popCtx && popCtx.kind === 'win') { const z = zones.find(q => q.id === popCtx.zid); if (z) openWinPop(z, popCtx.wi, popCtx.cx, popCtx.cy); }
+  });
+}
+function addGlazingCode() {
+  const v = P('glazIn').value.trim();
+  if (v && !glazingCodes.includes(v)) glazingCodes.push(v);
+  P('glazIn').value = '';
+  renderGlazList();
+  if (popCtx && popCtx.kind === 'win') { const z = zones.find(q => q.id === popCtx.zid); if (z) openWinPop(z, popCtx.wi, popCtx.cx, popCtx.cy); }
+}
+P('glazAdd').onclick = addGlazingCode;
+P('glazIn').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addGlazingCode(); } });
+
+P('pDelete').addEventListener('click', () => {
+  const z = zones.find(q => q.id === selectedId);
+  if (!z) return;
+  askConfirm('Delete zone ' + z.name + '? This cannot be undone except with Undo.', () => {
+    pushUndo();
+    zones = zones.filter(q => q.id !== z.id);
+    select(null);
+  });
+});
+// Robust tap binding for touch: on iPad a `click` can be missed/swallowed after a canvas
+// gesture, so fire on pointerup for touch/pen and dedupe the synthetic click that follows.
+function onTap(el, fn) {
+  let touchT = 0;
+  el.addEventListener('pointerup', e => {
+    if (e.pointerType === 'mouse') return;     // mouse keeps using click (covers keyboard too)
+    touchT = Date.now();
+    fn(e);
+  });
+  el.addEventListener('click', e => {
+    if (Date.now() - touchT < 700) return;     // a touch just handled this — don't double-fire
+    fn(e);
+  });
+}
+onTap(P('btnUndo'), undo);
+
+// ---- iOS catch-all: make EVERY button + palette menu fire on touch ----
+// On the iPad a `click` is unreliable after canvas gestures, so synthesize one on touch-tap
+// and swallow any native click that still follows, so handlers never run twice. Covers all
+// current AND dynamically-created buttons (popups, table rows). Controls with their own
+// pointer logic are excluded: the numpad, the drag chips, and the already-onTap'd Undo/Clear.
+let _synthAt = 0, _synthEl = null;
+function _tapTarget(node) {
+  if (!node || !node.closest) return null;
+  const el = node.closest('button, .symmenu');
+  if (!el || el.closest('.numpad') || el.id === 'btnUndo' || el.id === 'btnClear') return null;
+  return el;
+}
+document.addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse') return;          // mouse keeps its native click (+ keyboard)
+  const el = _tapTarget(e.target);
+  if (!el) return;
+  _synthAt = Date.now(); _synthEl = el;
+  const ev = new MouseEvent('click', { bubbles: true, cancelable: true });
+  ev._synthetic = true;
+  el.dispatchEvent(ev);
+});
+document.addEventListener('click', e => {
+  if (e._synthetic) return;                        // our own synth click — let it run
+  if (_synthEl && Date.now() - _synthAt < 700 && _tapTarget(e.target) === _synthEl) {
+    e.stopImmediatePropagation(); e.preventDefault();   // drop the duplicate native click
+  }
+}, true);
+
+// ---- big on-screen keypad — used for the wall-length tap AND every numeric dimension field
+// in the popups (the iPad doesn't reliably pop its own keyboard for those). Buffer-based; on
+// commit it calls commitFn(value). ----
+let keyPad = null;   // { buf, commit, allowDot, allowEmpty }
+let kpChain = null;  // active auto-advancing dimension chain (door/window entry)
+function openKeyPad(title, currentStr, commitFn, opts) {
+  keyPad = { buf: '', commit: commitFn, allowDot: !(opts && opts.intOnly), allowEmpty: !!(opts && opts.allowEmpty) };
+  P('lenpad').classList.toggle('dock', !!(opts && opts.dock));   // docked = float top-right, non-blocking
+  P('lenpadHead').textContent = title;
+  P('lenpadVal').textContent = (currentStr === '' || currentStr == null) ? '—' : currentStr;
+  // the decimal button is meaningless for integer fields (pane count) — hide it
+  const dot = P('lenpad').querySelector('button[data-k="."]');
+  if (dot) dot.style.visibility = keyPad.allowDot ? 'visible' : 'hidden';
+  P('lenpad').style.display = 'flex';
+}
+function closeKeyPad() { keyPad = null; P('lenpad').style.display = 'none'; }
+function keyPadKey(k) {
+  if (!keyPad) return;
+  if (k === 'cancel') { kpChain = null; return closeKeyPad(); }   // cancel aborts a running dimension chain
+  if (k === 'enter') {
+    const fn = keyPad.commit, buf = keyPad.buf, allowEmpty = keyPad.allowEmpty;
+    closeKeyPad();
+    if (buf !== '' || allowEmpty) fn(buf);     // commit the typed value (caller parses/validates); chains advance on blank too
+    return;
+  }
+  if (k === 'back') keyPad.buf = keyPad.buf.slice(0, -1);
+  else if (k === 'clear') keyPad.buf = '';
+  else if (k === '.') { if (keyPad.allowDot && !keyPad.buf.includes('.')) keyPad.buf = (keyPad.buf || '0') + '.'; }
+  else keyPad.buf += k;
+  P('lenpadVal').textContent = keyPad.buf || '—';
+}
+// ---- auto-advancing dimension chain ----
+// The keypad docks top-right (over the global defaults); each step's `live()` opens/refreshes the
+// dimension table so you SEE what you're entering, with the active cell highlighted. ✓ commits and
+// moves to the next field; a step's set() returning false finishes early (blank pane width = done).
+function runKeyPadChain(steps, onDone) {
+  kpChain = { steps, i: 0, onDone };
+  kpChainNext();
+}
+function kpChainNext() {
+  if (!kpChain) return;
+  if (kpChain.i >= kpChain.steps.length) { const done = kpChain.onDone; kpChain = null; if (done) done(); return; }
+  const s = kpChain.steps[kpChain.i];
+  if (s.live) s.live();                 // show the table + highlight the field about to be entered
+  const cur = s.get();
+  openKeyPad(s.title + (cur ? ' — now ' + cur : ''), cur, (buf) => {
+    const r = s.set(buf);
+    if (!kpChain) return;               // aborted mid-commit (Cancel / backdrop)
+    if (r === false) { const done = kpChain.onDone; kpChain = null; if (done) done(); return; }   // gate: finish early
+    kpChain.i++;
+    kpChainNext();
+  }, { intOnly: s.intOnly, allowEmpty: true, dock: true });
+}
+// door add -> width, height (door popup open so you see the cells fill)
+function doorEntryChain(z, d, cx, cy) {
+  const di = z.doors.indexOf(d);
+  const live = sel => () => openDoorPop(z, di, cx, cy, sel);
+  runKeyPadChain([
+    { title: 'Door width (m)',  get: () => d.w ?? '', set: b => { d.w = parseFloat(b) || null; }, live: live('#popDw') },
+    { title: 'Door height (m)', get: () => d.h ?? '', set: b => { d.h = parseFloat(b) || null; }, live: live('#popDh') }
+  ], () => { renderDoors(); render(); refreshList(); openDoorPop(z, z.doors.indexOf(d), cx, cy); });
+}
+// window add -> overall W, H, then pane W/H/No for up to 5 panes (blank pane width finishes)
+function winEntryChain(z, w, cx, cy) {
+  const wi = z.windows.indexOf(w);
+  w.panes = w.panes || [];
+  const live = sel => () => openWinPop(z, wi, cx, cy, sel);
+  const psel = (k, which) => '[data-pk="' + which + '"][data-row="' + k + '"]';
+  const steps = [
+    { title: 'Window width (m)',  get: () => w.w ?? '', set: b => { w.w = parseFloat(b) || null; }, live: live('#pwW') },
+    { title: 'Window height (m)', get: () => w.h ?? '', set: b => { w.h = parseFloat(b) || null; }, live: live('#pwH') }
+  ];
+  for (let k = 0; k < 5; k++) {
+    steps.push({
+      title: 'Pane ' + (k + 1) + ' width (m)' + (k > 0 ? ' — ✓ blank to finish' : ''),
+      get: () => (w.panes[k] && w.panes[k].w) ?? '',
+      set: b => { const v = parseFloat(b) || null; if (!v) { w.panes.length = Math.min(w.panes.length, k); return false; }
+                  (w.panes[k] = w.panes[k] || { n: 1 }).w = v; },
+      live: live(psel(k, 'w'))
+    });
+    steps.push({
+      title: 'Pane ' + (k + 1) + ' height (m)', get: () => (w.panes[k] && w.panes[k].h) ?? '',
+      set: b => { (w.panes[k] = w.panes[k] || { n: 1 }).h = parseFloat(b) || null; }, live: live(psel(k, 'h'))
+    });
+    steps.push({
+      title: 'Pane ' + (k + 1) + ' number', get: () => { const n = w.panes[k] && w.panes[k].n; return (n && n !== 1) ? n : ''; },
+      set: b => { const n = parseInt(b, 10); (w.panes[k] = w.panes[k] || {}).n = n >= 1 ? n : 1; }, intOnly: true, live: live(psel(k, 'n'))
+    });
+  }
+  runKeyPadChain(steps, () => {
+    w.panes = (w.panes || []).filter(p => p && p.w > 0 && p.h > 0);   // drop any half-entered pane
+    relabelWindows(z); renderWindows(); render(); refreshList();
+    openWinPop(z, z.windows.indexOf(w), cx, cy);   // leave the table open to review / add more
+    // overall dims but no pane measurements -> ask whether to ignore panes (else the "!" stays)
+    if (w.w > 0 && w.h > 0 && !winHasPane(w) && !w.ignorePanes) {
+      askConfirm('No pane measurements for this window. Ignore pane measurements for this window?',
+        () => { w.ignorePanes = true; relabelWindows(z); renderWindows(); render(); refreshList(); }, 'Ignore panes');
+    }
+  });
+}
+// in-app confirm (native confirm() is unreliable in iOS standalone). askConfirm(msg, onYes)
+let _confirmYes = null;
+function askConfirm(msg, onYes, yesLabel) {
+  P('confirmMsg').textContent = msg;
+  P('confirmYes').textContent = yesLabel || 'Delete';
+  _confirmYes = onYes;
+  P('confirmModal').style.display = 'flex';
+}
+function closeConfirm() { _confirmYes = null; P('confirmModal').style.display = 'none'; }
+P('confirmYes').addEventListener('click', () => { const fn = _confirmYes; closeConfirm(); if (fn) fn(); });
+P('confirmNo').addEventListener('click', closeConfirm);
+P('confirmModal').addEventListener('pointerup', e => { if (e.target === P('confirmModal')) closeConfirm(); });
+
+// wall-length tap on the plan
+function openLenPad(z, wall) {
+  ensureWalls(z);
+  const a = z.pts[wall], b = z.pts[(wall + 1) % z.pts.length];
+  const cur = pxToM(Math.hypot(b.x - a.x, b.y - a.y)).toFixed(2);
+  openKeyPad('Wall ' + (wall + 1) + ' length (m) — now ' + cur, cur, (buf) => {
+    const m = parseFloat(buf);
+    const zz = zones.find(q => q.id === z.id);
+    if (zz && m > 0.04) {
+      pushUndo();
+      setWallLength(zz, wall, m);
+      autoTypeWalls();
+      renderWalls(); renderWindows(); renderDoors(); refreshList();
+      P('pArea').textContent = zoneAreaM2(zz).toFixed(1) + ' m²';
+      render();
+    }
+  });
+}
+// height-chip tap on the plan -> set the zone's room height (manual edit locks it from the global default)
+function openHeightPad(z) {
+  const cur = (z.height && z.height > 0) ? String(z.height) : '';
+  openKeyPad('Zone ' + z.name + ' height (m)' + (cur ? ' — now ' + cur : ''), cur, (buf) => {
+    const m = parseFloat(buf);
+    const zz = zones.find(q => q.id === z.id);
+    if (!zz || !(m > 0)) return;
+    pushUndo();
+    zz.height = m;
+    zz.autoF = zz.autoF || {}; zz.autoF.height = false;   // hand-set — global height no longer applies here
+    if (zz.id === selectedId) { P('pHeight').value = zz.height; P('pHeight').classList.remove('autoF'); }
+    render(); refreshList();
+  });
+}
+P('lenpad').querySelectorAll('button').forEach(b => b.addEventListener('click', () => keyPadKey(b.dataset.k)));
+P('lenpad').addEventListener('pointerup', e => { if (e.target === P('lenpad')) { kpChain = null; closeKeyPad(); } });  // tap backdrop to close (aborts a chain)
+// physical keyboard support (desktop / testing)
+window.addEventListener('keydown', e => {
+  if (!keyPad) return;
+  if (/^[0-9]$/.test(e.key)) { keyPadKey(e.key); e.preventDefault(); }
+  else if (e.key === '.') { keyPadKey('.'); e.preventDefault(); }
+  else if (e.key === 'Backspace') { keyPadKey('back'); e.preventDefault(); }
+  else if (e.key === 'Enter') { keyPadKey('enter'); e.preventDefault(); }
+  else if (e.key === 'Escape') { keyPadKey('cancel'); e.preventDefault(); }
+});
+
+function labelForInput(inp) {
+  if (inp.dataset && inp.dataset.pk === 'n') return 'Number of panes';
+  if (inp.dataset && inp.dataset.pk === 'w') return 'Pane width (m)';
+  if (inp.dataset && inp.dataset.pk === 'h') return 'Pane height (m)';
+  const byId = { popDw:'Door width (m)', popDh:'Door height (m)', pwW:'Window width (m)', pwH:'Window height (m)', pHeight:'Room height (m)' };
+  if (byId[inp.id]) return byId[inp.id];
+  if (inp.classList.contains('len')) return 'Length (m)';   // wall-row length, door W/H rows
+  return 'Value';
+}
+function openKeyPadForInput(inp) {
+  const dock = !!(inp.closest && inp.closest('.floatpop'));   // popup dimension cells -> docked top-right; sidebar fields stay centred
+  openKeyPad(labelForInput(inp) + (inp.value ? ' — now ' + inp.value : ''), inp.value, (buf) => {
+    inp.value = buf;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));    // some fields listen on input…
+    inp.dispatchEvent(new Event('change', { bubbles: true }));   // …others on change
+  }, { intOnly: inp.step === '1', dock });
+}
+
+// ---- touch input bridge ----
+// This iPad doesn't synthesise focus/click from taps (confirmed: "nothing happens" on every
+// native control), so drive the form controls from raw pointer events:
+//   <select>          -> custom tap-to-pick list      (no native picker needed)
+//   number input      -> the big on-screen keypad      (no focus needed)
+//   checkbox          -> toggle + change directly
+//   text input/area   -> focus() inside the gesture to summon the iOS keyboard
+// Mouse is left entirely native (handler returns early), so desktop is unchanged.
+document.addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse') return;
+  const t = e.target;
+  if (!t || !t.tagName) return;
+  if (t.closest('#lenpad') || t.closest('#pickerModal') || t.closest('#confirmModal') || t.closest('.numpad')) return;
+  const tag = t.tagName;
+  if (tag === 'SELECT') { e.preventDefault(); openSelectPicker(t); }
+  else if (tag === 'INPUT' && t.type === 'number') { e.preventDefault(); t.blur(); openKeyPadForInput(t); }
+  else if (tag === 'INPUT' && t.type === 'checkbox') { e.preventDefault(); t.checked = !t.checked; t.dispatchEvent(new Event('change', { bubbles: true })); }
+  else if (tag === 'TEXTAREA' || tag === 'INPUT') { try { t.focus(); } catch (_) {} }
+});
+
+// custom <select> picker — a tappable list of the select's options
+function openSelectPicker(sel) {
+  const list = P('pickerList');
+  list.innerHTML = '<div class="ph">Choose…</div>';
+  [...sel.options].forEach(o => {
+    const b = document.createElement('button');
+    b.textContent = o.textContent;
+    if (o.selected) b.className = 'sel';
+    b.addEventListener('click', () => {
+      sel.value = o.value;
+      sel.dispatchEvent(new Event('input', { bubbles: true }));    // zone-property selects listen on input…
+      sel.dispatchEvent(new Event('change', { bubbles: true }));   // …globals/wall selects on change
+      closePicker();
+    });
+    list.appendChild(b);
+  });
+  P('pickerModal').style.display = 'flex';
+}
+function closePicker() { P('pickerModal').style.display = 'none'; P('pickerList').innerHTML = ''; }
+P('pickerModal').addEventListener('pointerup', e => { if (e.target === P('pickerModal')) closePicker(); });
+
+document.getElementById('scale').addEventListener('input', () => { render(); refreshList(); select(selectedId); });
+document.getElementById('north').addEventListener('input', () => { render(); renderWalls(); renderWindows(); });
+
+// ---------- zone schedule ----------
+function refreshList() {
+  const tb = P('zoneRows');
+  tb.innerHTML = '';
+  let total = 0;
+  zones.forEach((z, i) => {
+    const a = zoneAreaM2(z);
+    total += a;
+    const tr = document.createElement('tr');
+    if (z.id === selectedId) tr.className = 'sel';
+    const done = zoneRecorded(z);
+    const badge = done === ZONE_CHECKS
+      ? '<span class="badge ok" title="All six survey items recorded">&#10003;</span>'
+      : '<span class="badge todo" title="Recorded ' + done + ' of ' + ZONE_CHECKS + ': activity, heating, lighting, height, hot water, windows">' + done + '/' + ZONE_CHECKS + '</span>';
+    tr.innerHTML = '<td><span class="swatch" style="background:' + COLOURS[i % COLOURS.length] + '"></span>' +
+      esc(z.name) + badge + '</td><td>' + (esc(z.activity) || '—') + '</td><td style="text-align:right">' + a.toFixed(1) + '</td>' +
+      '<td style="text-align:right"><button class="zdel" title="Delete this zone" style="border:none;background:none;color:#d33;font-weight:700;font-size:15px;cursor:pointer;padding:0 4px;touch-action:manipulation;">&times;</button></td>';
+    tr.onclick = () => { mode = 'select'; setModeButtons(); select(z.id); };
+    tr.querySelector('.zdel').addEventListener('click', e => {
+      e.stopPropagation();   // don't also select the row
+      askConfirm('Delete zone ' + z.name + '? This cannot be undone except with Undo.', () => {
+        pushUndo();
+        zones = zones.filter(q => q.id !== z.id);
+        if (selectedId === z.id) select(null);
+        render(); refreshList();
+      });
+    });
+    tb.appendChild(tr);
+  });
+  P('totals').innerHTML = 'Zones: <b>' + zones.length + '</b> &nbsp;&middot;&nbsp; Total floor area: <b>' + total.toFixed(1) + ' m²</b>';
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+// ---------- modes ----------
+const HINTS = {
+  rect: 'Rectangle mode: click and drag for a quick square room.',
+  poly: 'Walls mode: click to place corners — walls snap to 15°, follow nearby zones’ angled walls exactly (∥ in the readout), and click exactly onto existing corners (green ring). Type a length (m) and/or an angle in the @ ° box for exact walls. Close via first corner / double-click / Enter. Esc cancels.',
+  select: 'Select mode: click a zone to edit it; drag a corner to reshape; grab a wall to push it in/out. CLICK a wall, window or door for dimensions + the split-wall option — red ! = dimensions needed. Drag chips from the palette or the Lights/Heating/Hot-water menus (these also record the zone’s field). Wheel zooms, middle-drag pans, Ctrl+Z undoes.'
+};
+function setModeButtons() {
+  P('modeRect').className = mode === 'rect' ? 'active' : '';
+  P('modePoly').className = mode === 'poly' ? 'active' : '';
+  P('modeSelect').className = mode === 'select' ? 'active' : '';
+  cv.className = mode === 'select' ? 'select-mode' : '';
+  P('hint').textContent = HINTS[mode];
+  P('wallTools').style.display = mode === 'poly' ? 'flex' : 'none';
+  P('sympal').style.display = mode === 'select' ? 'flex' : 'none';
+  if (mode !== 'select') openMenu = null;
+  renderSymDrop();
+  updateNumpad();
+  if (mode !== 'poly') { poly = null; lenBuf = ''; updateLenbox(); }
+  render();
+}
+P('modeRect').onclick = () => { mode = 'rect'; setModeButtons(); };
+P('modePoly').onclick = () => { mode = 'poly'; setModeButtons(); };
+P('modeSelect').onclick = () => { mode = 'select'; setModeButtons(); };
+
+// ---------- big number pad (site / finger entry) ----------
+// Feeds whichever number input was last focused; defaults to the Wall (m) box in Walls mode.
+// type=number rejects a trailing "." so a pending-dot flag holds it until the next digit.
+let padTarget = null, padPendingDot = false;
+let padOn = localStorage.getItem('ember-numpad') === '1';
+function padLabel(t) {
+  if (!t) return '→ tap a number box';
+  if (t.id === 'lenInput') return '→ Wall (m)';
+  if (t.id === 'angInput') return '→ Angle °';
+  return '→ ' + (t.title ? t.title.split('—')[0].trim().slice(0, 26) : (t.placeholder || 'number box'));
+}
+function updateNumpad() {
+  const showing = padOn || mode === 'poly';   // auto-show while drawing walls; 123 toggle still drives the other modes
+  P('numpad').style.display = showing ? 'grid' : 'none';
+  P('btnPad').className = showing ? 'active' : '';
+  P('numpadTarget').textContent = padLabel(padTarget && document.contains(padTarget) ? padTarget : (mode === 'poly' ? P('lenInput') : null));
+}
+P('btnPad').onclick = () => {
+  padOn = !padOn;
+  localStorage.setItem('ember-numpad', padOn ? '1' : '0');
+  updateNumpad();
+};
+document.addEventListener('focusin', e => {
+  if (e.target.matches && e.target.matches('input[type="number"]')) {
+    padTarget = e.target;
+    padPendingDot = false;
+    updateNumpad();
+  }
+});
+P('numpad').querySelectorAll('button').forEach(b => {
+  b.addEventListener('pointerdown', e => {
+    e.preventDefault();   // never steal focus from the target input
+    let t = (padTarget && document.contains(padTarget)) ? padTarget : (mode === 'poly' ? P('lenInput') : null);
+    if (!t) return;
+    const k = b.dataset.k;
+    if (k === 'enter') {
+      padPendingDot = false;
+      t.dispatchEvent(new Event('change', { bubbles: true }));
+      if (t === P('lenInput')) placeTypedWall();
+      updateNumpad();
+      return;
+    }
+    if (k === 'back') { t.value = String(t.value).slice(0, -1); padPendingDot = false; }
+    else if (k === 'clear') { t.value = ''; padPendingDot = false; }
+    else if (k === '.') { if (!String(t.value).includes('.')) padPendingDot = true; }
+    else { t.value = String(t.value) + (padPendingDot ? '.' : '') + k; padPendingDot = false; }
+    t.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+});
+
+// ---------- zoom (wheel + buttons), pan (middle drag) ----------
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+}, { passive: false });
+P('btnZoomIn').onclick = () => zoomAt(cv.width / 2, cv.height / 2, 1.25);
+P('btnZoomOut').onclick = () => zoomAt(cv.width / 2, cv.height / 2, 1 / 1.25);
+P('btnZoom100').onclick = () => zoomAt(cv.width / 2, cv.height / 2, 1 / view.k);
+
+// ---------- save / load / export ----------
+function jobData() {
+  return {
+    job: P('jobName').value,
+    scaleMetresPerSquare: scaleM(),
+    northDeg: northDeg(),
+    savedAt: new Date().toISOString(),
+    globals,
+    glazingCodes,
+    notes: notes.map(({ _box, ...rest }) => rest),
+    zones: zones.map(z => ({
+      ...z,
+      areaM2: +zoneAreaM2(z).toFixed(2),
+      windows: (z.windows || []).map(w => ({
+        ...w, areaM2: +winAreaM2(w).toFixed(3), glazedM2: +winGlazedM2(w).toFixed(3),
+        orientation: (w.wall != null && z.pts[w.wall] !== undefined) ? wallOrientation(z, w.wall).name : null
+      }))
+    }))
+  };
+}
+P('btnSave').onclick = () => {
+  localStorage.setItem('ember-survey-poc', JSON.stringify(jobData()));
+  alert('Saved in this browser (localStorage).');
+};
+P('btnLoad').onclick = () => {
+  const raw = localStorage.getItem('ember-survey-poc');
+  if (!raw) return alert('Nothing saved yet.');
+  const d = JSON.parse(raw);
+  P('jobName').value = d.job || '';
+  document.getElementById('scale').value = d.scaleMetresPerSquare || 0.5;
+  document.getElementById('north').value = d.northDeg || 0;
+  notes = d.notes || [];
+  globals = d.globals || { lighting: '', heating: '', height: '' };
+  glazingCodes = Array.isArray(d.glazingCodes) ? d.glazingCodes.slice() : [];
+  refreshGlobalInputs();
+  // convert any old rectangle-format saves to polygons; older saves had no windows array
+  zones = (d.zones || []).map(z => z.pts ? z :
+    ({ ...z, pts: [{x:z.x,y:z.y},{x:z.x+z.w,y:z.y},{x:z.x+z.w,y:z.y+z.h},{x:z.x,y:z.y+z.h}] }));
+  zones.forEach((z, i) => {
+    z.windows = z.windows || []; z.noWindows = !!z.noWindows;
+    z.symbols = z.symbols || []; z.doors = z.doors || [];
+    if (z.floor === undefined) z.floor = 0;          // older saves: assume ground floor
+    if (z.seq === undefined) z.seq = i + 1;          // give a sequence so new-zone naming continues cleanly
+    // older saves carry no autoF: any value already recorded = user-set
+    z.autoF = z.autoF || { lighting: !z.lighting, heating: !z.heating, height: !z.height };
+    ensureWalls(z);
+    // older saves carry no auto flag: typed walls = user-set, untyped get geometry defaults
+    z.walls.forEach(w => { if (w.auto === undefined) w.auto = !w.type; });
+  });
+  // harvest any glazing codes already used by windows so the project list is pre-populated
+  zones.forEach(z => (z.windows || []).forEach(w => { if (w.code && !glazingCodes.includes(w.code)) glazingCodes.push(w.code); }));
+  applyGlobals();
+  autoTypeWalls();
+  seedWinNums();   // continue numbering after the highest saved window number
+  rebuildWinTypes();
+  renderGlazList();
+  nextId = Math.max(0, ...zones.map(z => z.id)) + 1;
+  select(null); render(); refreshList();
+};
+P('btnJson').onclick = () => download((P('jobName').value || 'survey') + '.json', JSON.stringify(jobData(), null, 2), 'application/json');
+P('btnCsv').onclick = () => {
+  const csvCell = v => '"' + String(v).replace(/"/g,'""') + '"';
+  const head = ['Zone','Activity','Area m2','Height m','Heating','Cooling','Lighting','Ventilation','HWS','Walls','Symbols','Doors','Windows','Glazed m2','Notes'];
+  const rows = zones.map(z => {
+    const ws = z.windows || [];
+    const winSummary = ws.length
+      ? ws.map(w => (w.label || 'W?') + ' ' + (w.w ? w.w + 'x' + w.h : '?') + (w.code ? ' ' + w.code : '')).join('; ')
+      : (z.noWindows ? 'none (confirmed)' : 'NOT RECORDED');
+    const glazed = ws.reduce((s, w) => s + winGlazedM2(w), 0);
+    ensureWalls(z);
+    const counts = {};
+    z.walls.forEach(wl => { if (wl.type) counts[wl.type] = (counts[wl.type] || 0) + 1; });
+    const wallParts = Object.entries(counts).map(([t, n]) => n + 'x ' + t);
+    const party = z.walls.filter(wl => wl.party).length;
+    if (party) wallParts.push(party + 'x adjoining building');
+    const untyped = z.walls.filter(wl => !wl.type).length;
+    if (untyped) wallParts.push(untyped + ' untyped');
+    const symCounts = {};
+    (z.symbols || []).forEach(s => { symCounts[s.code] = (symCounts[s.code] || 0) + 1; });
+    const symTxt = Object.entries(symCounts).map(([c, n]) => n + 'x ' + (SYM[c] ? SYM[c].name : c)).join('; ');
+    const doorTxt = (z.doors || []).map(d => (d.label || 'D?') + ' ' +
+      (doorIsInternal(z, d) ? 'internal' : (d.w || '?') + 'x' + (d.h || '?') + 'm') + ' wall ' + (d.wall + 1)).join('; ');
+    return [z.name, z.activity, zoneAreaM2(z).toFixed(1), z.height, z.heating, z.cooling, z.lighting, z.vent, z.hws, wallParts.join('; '), symTxt, doorTxt, winSummary, glazed.toFixed(2), z.notes]
+      .map(csvCell).join(',');
+  });
+  download((P('jobName').value || 'survey') + '-zones.csv', head.join(',') + '\n' + rows.join('\n'), 'text/csv');
+
+  // second file: one row per window, only if any windows recorded
+  const winRows = [];
+  zones.forEach(z => (z.windows || []).forEach(w => {
+    const placed = w.wall != null && z.pts[w.wall] !== undefined;
+    winRows.push([z.name, w.label, w.w || '', w.h || '', winAreaM2(w).toFixed(2),
+      w.panes.map(p => p.w + 'x' + p.h + ((p.n || 1) > 1 ? ' x' + p.n : '')).join('; '), winPaneCount(w),
+      winGlazedM2(w).toFixed(2), w.code,
+      placed ? 'wall ' + (w.wall + 1) : 'NOT PLACED',
+      placed ? wallOrientation(z, w.wall).name : '',
+      w.notes].map(csvCell).join(','));
+  }));
+  if (winRows.length) {
+    const winHead = ['Zone','Window','Overall W m','Overall H m','Overall m2','Panes','Pane count','Glazed m2','Type','Wall','Orientation','Notes'];
+    setTimeout(() => download((P('jobName').value || 'survey') + '-windows.csv', winHead.join(',') + '\n' + winRows.join('\n'), 'text/csv'), 300);
+  }
+};
+// ---------- DXF export ----------
+// Minimal AutoCAD R12 ASCII DXF: one closed POLYLINE per zone on layer ZONES (+ name TEXT on
+// layer LABELS). Coordinates in REAL METRES, Y flipped (screen y-down -> CAD y-up), origin at
+// bottom-left of the drawn extents. Imports into AutoCAD / LibreCAD / DesignBuilder 2D trace.
+// AS-DRAWN export (Shane, 12 Jun): the surveyor adds wall thickness to the room measurements
+// ON SITE, so the DXF carries the drawn geometry exactly — no thickness offsets, no
+// room-pushing. (The old assembly engine lived here until v0.17 — see archive/ if it's ever
+// wanted back.)
+function outwardNormal(z, i) {
+  const a = z.pts[i], b = z.pts[(i + 1) % z.pts.length];
+  const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+  let nx = dy / len, ny = -dx / len;
+  if (inPoly(z.pts, (a.x + b.x) / 2 + nx, (a.y + b.y) / 2 + ny)) { nx = -nx; ny = -ny; }
+  return { nx, ny };
+}
+
+function toDxf() {
+  if (!zones.length) return null;
+  const k = scaleM() / GRID;
+  const polys = zones.map(z => ({ z, pts: z.pts.map(p => ({ x: p.x, y: p.y })) }));
+
+  let minX = Infinity, maxY = -Infinity;
+  polys.forEach(pp => pp.pts.forEach(p => {
+    if (p.x < minX) minX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }));
+  const X = px => ((px - minX) * k).toFixed(4);
+  const Y = py => ((maxY - py) * k).toFixed(4);
+
+  const d = [];
+  const w = (...vals) => d.push(...vals);
+
+  w('0','SECTION','2','HEADER');
+  w('9','$INSUNITS','70','6');          // drawing units = metres
+  w('0','ENDSEC');
+  w('0','SECTION','2','TABLES');
+  w('0','TABLE','2','LAYER','70','2');
+  w('0','LAYER','2','ZONES','70','0','62','1','6','CONTINUOUS');
+  w('0','LAYER','2','LABELS','70','0','62','3','6','CONTINUOUS');
+  w('0','ENDTAB','0','ENDSEC');
+  w('0','SECTION','2','ENTITIES');
+  polys.forEach(({ z, pts }) => {
+    w('0','POLYLINE','8','ZONES','66','1','70','1');   // 70=1 closed
+    pts.forEach(p => w('0','VERTEX','8','ZONES','10',X(p.x),'20',Y(p.y),'30','0'));
+    w('0','SEQEND','8','ZONES');
+    const c = centroid(pts);
+    w('0','TEXT','8','LABELS','10',X(c.x),'20',Y(c.y),'30','0','40','0.3','1',
+      z.name + ' (' + zoneAreaM2(z).toFixed(1) + ' m2)');
+  });
+  w('0','ENDSEC','0','EOF');
+  return d.join('\r\n');
+}
+P('btnDxf').onclick = () => {
+  const dxf = toDxf();
+  if (!dxf) return alert('Nothing to export — draw a zone first.');
+  download((P('jobName').value || 'survey') + '.dxf', dxf, 'application/dxf');
+};
+
+function download(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+// fit every zone into the canvas (for the print snapshot)
+function fitAllZones() {
+  if (!zones.length) return;
+  let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+  zones.forEach(z => z.pts.forEach(p => { minx = Math.min(minx, p.x); miny = Math.min(miny, p.y); maxx = Math.max(maxx, p.x); maxy = Math.max(maxy, p.y); }));
+  const bw = (maxx - minx) || 1, bh = (maxy - miny) || 1, m = 55;
+  const k = Math.min((cv.width - 2 * m) / bw, (cv.height - 2 * m) / bh, 4);
+  view.k = k;
+  view.ox = m + (cv.width - 2 * m - bw * k) / 2 - minx * k;
+  view.oy = m + (cv.height - 2 * m - bh * k) / 2 - miny * k;
+}
+P('btnPrint').onclick = () => {
+  if (!zones.length) return alert('Draw at least one zone first.');
+  // snapshot the plan with every zone visible and nothing selected
+  const prevSel = selectedId, prevView = { ...view };
+  selectedId = null; selWall = null; printDims = true; fitAllZones(); render();
+  const img = cv.toDataURL('image/png');
+  printDims = false;
+  view = prevView; selectedId = prevSel; select(prevSel);   // restore the working view
+  // per-zone info table: number, height, area, lighting, heating, windows
+  const rows = zones.map(z => {
+    const wins = (z.windows || []).map(w =>
+      (w.label || 'W?') + ' ' + ((w.w && w.h) ? w.w + '×' + w.h : '?') + (w.code ? ' ' + w.code : '')).join('; ') || '—';
+    return '<tr><td><b>' + esc(z.name) + '</b></td><td>' + (z.height || '—') + '</td><td>' + zoneAreaM2(z).toFixed(1) +
+      '</td><td>' + esc(z.lighting || '—') + '</td><td>' + esc(z.heating || '—') + '</td><td>' + esc(wins) + '</td></tr>';
+  }).join('');
+  const title = esc(P('jobName').value || 'Commercial survey');
+  const doc =
+    '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1"><title>' + title + '</title><style>' +
+    'body{font-family:system-ui,-apple-system,Arial,sans-serif;margin:16px;color:#111}' +
+    'h1{font-size:20px;color:#E76C13;margin:0 0 10px}' +
+    'img{display:block;max-width:100%;border:1px solid #ccc;margin-bottom:14px}' +
+    'table{width:100%;border-collapse:collapse;font-size:12px}' +
+    'th,td{border:1px solid #999;padding:5px 7px;text-align:left;vertical-align:top}' +
+    'th{background:#f0f0f0}' +
+    '#bar{position:sticky;top:0;background:#fff;padding:8px 0 10px;border-bottom:1px solid #eee;margin-bottom:12px}' +
+    '#bar button{font-size:16px;padding:10px 18px;background:#E76C13;color:#fff;border:0;border-radius:8px}' +
+    '#bar span{font-size:12px;color:#666;margin-left:10px}' +
+    '@media print{#bar{display:none}}' +
+    '</style></head><body>' +
+    '<div id="bar"><button onclick="window.print()">&#128424; Print / Save as PDF</button>' +
+    '<span>iPad: tap Print, then Share &rarr; Save to PDF</span></div>' +
+    '<h1>' + title + '</h1>' +
+    '<img src="' + img + '">' +
+    '<table><thead><tr><th>Zone</th><th>Height (m)</th><th>Area (m²)</th><th>Lighting</th><th>Heating</th><th>Windows</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table></body></html>';
+  // Open the printable view in its OWN tab. window.print() on this page is dead in an iOS
+  // standalone PWA and sandboxed inside embedded preview panes; a fresh tab prints / saves-PDF
+  // reliably on the iPad (Share -> Save to PDF) and the desktop alike.
+  let w = null;
+  try { w = window.open('', '_blank'); } catch (e) { w = null; }
+  if (w && w.document) {
+    w.document.open(); w.document.write(doc); w.document.close();
+  } else {
+    // popup blocked / iOS refused the blank window -> navigate to a Blob URL instead
+    const url = URL.createObjectURL(new Blob([doc], { type: 'text/html' }));
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+};
+// Two-tap clear — no confirm() dialog (unreliable in iOS standalone). First tap arms it for
+// 3s ("Tap again to clear"), second tap within that window clears.
+let clearArmed = false, clearTimer = null;
+function disarmClear() { clearArmed = false; if (clearTimer) clearTimeout(clearTimer); P('btnClear').textContent = 'Clear all'; }
+onTap(P('btnClear'), () => {
+  if (!clearArmed) {
+    clearArmed = true;
+    P('btnClear').textContent = 'Tap again to clear';
+    clearTimer = setTimeout(disarmClear, 3000);
+    return;
+  }
+  disarmClear();
+  pushUndo(); zones = []; notes = []; winNumNext = 1; select(null); render(); refreshList();
+});
+
+setModeButtons();
+resize();
+refreshList();
+renderGlazList();
+
+// offline PWA — registers only on https/localhost (browsers refuse SWs on plain http).
+// On site: install to the iPad home screen from an https host and it runs with no signal.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => { /* http LAN dev — fine without it */ });
+}
+</script>
+</body>
+</html>
