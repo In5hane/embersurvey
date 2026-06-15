@@ -819,8 +819,11 @@ function render() {
       const p = doorPos(z, d);
       if (!p) return;
       drawDoorBar(p.x, p.y, p.ux, p.uy, d.w);
+      const intl = doorIsInternal(z, d);
       const dn = outwardNormal(z, d.wall);   // label OUTSIDE the building, same as the windows
-      labelBang(d.label || 'D?', p.x + dn.nx * 14, p.y + dn.ny * 14, '#8d5524', !doorIsInternal(z, d) && !(d.w && d.h));
+      const dlabel = (d.label || 'D?') + (intl && d.w ? ' ' + d.w + 'm' : '');
+      const incomplete = intl ? !d.w : !(d.w && d.h);   // internal opening incomplete until a width is set
+      labelBang(dlabel, p.x + dn.nx * 14, p.y + dn.ny * 14, '#8d5524', incomplete);
     });
 
     // selected zone: corner handles (draggable in Select mode). Print snapshot draws no handles.
@@ -1986,13 +1989,14 @@ function renderDoors() {
   sum.textContent = z.doors.length ? '· ' + z.doors.length : '· drag the Door chip onto a wall';
   z.doors.forEach((d, i) => {
     const internal = doorIsInternal(z, d);
-    const bang = (internal || (d.w && d.h)) ? '' : '<span style="color:#d33;">!</span>';
+    const complete = internal ? !!d.w : !!(d.w && d.h);
+    const bang = complete ? '' : '<span style="color:#d33;">!</span>';
     const row = document.createElement('div');
     row.className = 'wall-row';
     row.innerHTML = '<b>' + (d.label || 'D' + (i + 1)) + bang + '</b>' +
-      '<span class="len" style="border:none;">wall ' + (d.wall + 1) + ' (' + wallOrientation(z, d.wall).name + ')</span>' +
+      '<span class="len" style="border:none;">wall ' + (d.wall + 1) + ' (' + wallOrientation(z, d.wall).name + ')' + (internal ? ' · opening' : '') + '</span>' +
       (internal
-        ? '<span class="len" style="border:none;color:#999;font-style:italic;">internal — no dims</span>'
+        ? '<input class="dw len" type="number" step="0.05" min="0.1" inputmode="decimal" value="' + (d.w ?? '') + '" placeholder="W" title="Internal opening width (m)"><span style="color:#777;">m</span>'
         : '<input class="dw len" type="number" step="0.05" min="0.3" inputmode="decimal" value="' + (d.w ?? '') + '" placeholder="W" title="Door opening width (m)">' +
           '<input class="dh len" type="number" step="0.05" min="0.3" inputmode="decimal" value="' + (d.h ?? '') + '" placeholder="H" title="Door opening height (m)">' +
           '<span style="color:#777;">m</span>') +
@@ -2455,10 +2459,14 @@ function openDoorPop(z, i, cx, cy, hi) {
   const d = z.doors[i];
   if (!d) return closePop();
   if (doorIsInternal(z, d)) {
-    const html2 = '<h3>' + (d.label || 'Door') + ' — internal</h3>' +
-      '<div style="color:#777;font-size:11px;margin-bottom:4px;">Internal door — no dimensions required.</div>' +
-      '<button class="rowbtn" id="popDoorDel" style="color:#d33;border-color:#d33;">Delete door</button>';
+    const html2 = '<h3>' + (d.label || 'Door') + ' — internal opening</h3>' +
+      '<table><tr><th>Opening width m</th></tr><tr>' +
+      '<td><input id="popDw" type="number" step="0.05" inputmode="decimal" value="' + (d.w ?? '') + '" placeholder="0.9"></td></tr></table>' +
+      '<div style="color:#777;font-size:11px;margin:4px 0;">Internal opening — set the width (no height needed).</div>' +
+      '<button class="rowbtn" id="popDoorDel" style="color:#d33;border-color:#d33;">Delete opening</button>';
     openPop(cx, cy, html2);
+    floatPop.querySelector('#popDw').onchange = e => { pushUndo(); d.w = parseFloat(e.target.value) || null; renderDoors(); render(); };
+    if (hi) { const el = floatPop.querySelector(hi); if (el) el.classList.add('kpactive'); }
     floatPop.querySelector('#popDoorDel').onclick = () => {
       pushUndo();
       z.doors.splice(i, 1);
@@ -2629,8 +2637,10 @@ document.addEventListener('pointerup', e => {
         hit.z.doors.push({ wall: hit.i, t: Math.min(0.92, Math.max(0.08, hit.t)), w: null, h: null });
         relabelDoors(hit.z);
         renderDoors();
-        // internal doors need no dimensions — only external drops chain straight into width -> height
-        if (!isInternalWall(hit.z.walls[hit.i])) doorEntryChain(hit.z, hit.z.doors[hit.z.doors.length - 1], dragSym.cx, dragSym.cy);
+        // external door -> width+height chain; internal opening -> width-only chain
+        const newDoor = hit.z.doors[hit.z.doors.length - 1];
+        if (!isInternalWall(hit.z.walls[hit.i])) doorEntryChain(hit.z, newDoor, dragSym.cx, dragSym.cy);
+        else openingEntryChain(hit.z, newDoor, dragSym.cx, dragSym.cy);
       }
     } else if (dragSym.code === 'WINTYPE') {
       // a window TAG dropped on an EXTERNAL wall — places another window of that exact size.
@@ -2918,6 +2928,13 @@ function doorEntryChain(z, d, cx, cy) {
   runKeyPadChain([
     { title: 'Door width (m)',  get: () => d.w ?? '', set: b => { d.w = parseFloat(b) || null; }, live: live('#popDw') },
     { title: 'Door height (m)', get: () => d.h ?? '', set: b => { d.h = parseFloat(b) || null; }, live: live('#popDh') }
+  ], () => { renderDoors(); render(); refreshList(); openDoorPop(z, z.doors.indexOf(d), cx, cy); });
+}
+// internal opening -> width only (no height); same docked-keypad flow as the door chain
+function openingEntryChain(z, d, cx, cy) {
+  const di = z.doors.indexOf(d);
+  runKeyPadChain([
+    { title: 'Opening width (m)', get: () => d.w ?? '', set: b => { d.w = parseFloat(b) || null; }, live: () => openDoorPop(z, di, cx, cy, '#popDw') }
   ], () => { renderDoors(); render(); refreshList(); openDoorPop(z, z.doors.indexOf(d), cx, cy); });
 }
 // window add -> overall W, H, then pane W/H/No for up to 5 panes (blank pane width finishes)
@@ -3274,7 +3291,7 @@ P('btnCsv').onclick = () => {
     (z.symbols || []).forEach(s => { symCounts[s.code] = (symCounts[s.code] || 0) + 1; });
     const symTxt = Object.entries(symCounts).map(([c, n]) => n + 'x ' + (SYM[c] ? SYM[c].name : c)).join('; ');
     const doorTxt = (z.doors || []).map(d => (d.label || 'D?') + ' ' +
-      (doorIsInternal(z, d) ? 'internal' : (d.w || '?') + 'x' + (d.h || '?') + 'm') + ' wall ' + (d.wall + 1)).join('; ');
+      (doorIsInternal(z, d) ? 'internal opening ' + (d.w || '?') + 'm' : (d.w || '?') + 'x' + (d.h || '?') + 'm') + ' wall ' + (d.wall + 1)).join('; ');
     return [z.name, z.activity, zoneAreaM2(z).toFixed(1), z.height, z.heating, z.cooling, z.lighting, z.vent, z.hws, wallParts.join('; '), symTxt, doorTxt, winSummary, glazed.toFixed(2), z.notes]
       .map(csvCell).join(',');
   });
@@ -3387,6 +3404,9 @@ P('btnPrint').onclick = () => {
       '</td><td>' + esc(z.lighting || '—') + '</td><td>' + esc(z.heating || '—') + '</td><td>' + esc(wins) + '</td></tr>';
   }).join('');
   const title = esc(P('jobName').value || 'Commercial survey');
+  // The doc that actually gets printed — opened in its OWN tab only when the surveyor taps
+  // Print/Save-as-PDF, because window.print() is dead in an iOS standalone PWA and sandboxed
+  // in embedded preview panes. A real tab prints / saves-PDF reliably (Share -> Save to PDF).
   const doc =
     '<!doctype html><html><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1"><title>' + title + '</title><style>' +
@@ -3407,21 +3427,45 @@ P('btnPrint').onclick = () => {
     '<img src="' + img + '">' +
     '<table><thead><tr><th>Zone</th><th>Height (m)</th><th>Area (m²)</th><th>Lighting</th><th>Heating</th><th>Windows</th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table></body></html>';
-  // Open the printable view in its OWN tab. window.print() on this page is dead in an iOS
-  // standalone PWA and sandboxed inside embedded preview panes; a fresh tab prints / saves-PDF
-  // reliably on the iPad (Share -> Save to PDF) and the desktop alike.
-  let w = null;
-  try { w = window.open('', '_blank'); } catch (e) { w = null; }
-  if (w && w.document) {
-    w.document.open(); w.document.write(doc); w.document.close();
-  } else {
-    // popup blocked / iOS refused the blank window -> navigate to a Blob URL instead
-    const url = URL.createObjectURL(new Blob([doc], { type: 'text/html' }));
-    const a = document.createElement('a');
-    a.href = url; a.target = '_blank'; a.rel = 'noopener';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  }
+  // Show the preview as an IN-APP overlay (not a hijack into Safari) so the surveyor can always
+  // tap Back to return to the drawing. Printing is then a separate explicit action.
+  let ov = document.getElementById('printOverlay');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'printOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;overflow:auto;-webkit-overflow-scrolling:touch';
+  ov.innerHTML =
+    '<style>#printOverlay table{width:100%;border-collapse:collapse;font-size:12px}' +
+    '#printOverlay th,#printOverlay td{border:1px solid #999;padding:5px 7px;text-align:left;vertical-align:top}' +
+    '#printOverlay th{background:#f0f0f0}</style>' +
+    '<div style="position:sticky;top:0;background:#fff;padding:10px 14px;border-bottom:1px solid #eee;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+      '<button id="printBack" style="font-size:16px;padding:10px 16px;background:#555;color:#fff;border:0;border-radius:8px">&#8592; Back to drawing</button>' +
+      '<button id="printGo" style="font-size:16px;padding:10px 18px;background:#E76C13;color:#fff;border:0;border-radius:8px">&#128424; Print / Save as PDF</button>' +
+      '<span style="font-size:12px;color:#666">Print opens a tab — iPad: Print &rarr; Share &rarr; Save to PDF</span>' +
+    '</div>' +
+    '<div style="padding:14px">' +
+      '<h1 style="font-size:20px;color:#E76C13;margin:0 0 10px">' + title + '</h1>' +
+      '<img src="' + img + '" style="display:block;max-width:100%;border:1px solid #ccc;margin-bottom:14px">' +
+      '<table><thead><tr><th>Zone</th><th>Height (m)</th><th>Area (m²)</th><th>Lighting</th><th>Heating</th><th>Windows</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table>' +
+    '</div>';
+  document.body.appendChild(ov);
+  // Back — just close the overlay, stay in the app
+  ov.querySelector('#printBack').onclick = () => ov.remove();
+  // Print — open the printable doc in its own tab where window.print()/Share works
+  ov.querySelector('#printGo').onclick = () => {
+    let w = null;
+    try { w = window.open('', '_blank'); } catch (e) { w = null; }
+    if (w && w.document) {
+      w.document.open(); w.document.write(doc); w.document.close();
+    } else {
+      const url = URL.createObjectURL(new Blob([doc], { type: 'text/html' }));
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  };
 };
 // Two-tap clear — no confirm() dialog (unreliable in iOS standalone). First tap arms it for
 // 3s ("Tap again to clear"), second tap within that window clears.
