@@ -241,6 +241,12 @@
     @page { margin: 12mm; }
   }
   .floatpop .rowbtn { width: 100%; padding: 5px; margin-top: 6px; border: 1px dashed var(--border); border-radius: 4px; color: #666; background: white; cursor: pointer; font-size: 12px; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 40; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal-card { background: #fff; border-radius: 10px; padding: 16px; width: min(440px, 92vw); box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+  .modal-card h3 { color: var(--ember); margin: 0 0 8px; }
+  .recover-row { display: block; width: 100%; text-align: left; padding: 10px 12px; margin: 4px 0; border: 1px solid var(--border); border-radius: 8px; background: #fafafa; cursor: pointer; font-size: 13px; }
+  #recoverCancel { margin-top: 10px; padding: 8px 16px; border: 1px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -284,6 +290,7 @@
   <div class="sep"></div>
   <button id="btnSave">&#128190; Save</button>
   <button id="btnLoad">&#128194; Load</button>
+  <button id="btnRecover" title="Recover an automatic local backup (last 5 per project) — works even if OneDrive didn't sync">&#8635; Recover</button>
   <button id="btnCsv">&#11015; Export CSV</button>
   <button id="btnJson">&#11015; Export JSON</button>
   <button id="btnDxf" title="Export the floor plan as a DXF (CAD) file in real metres — imports into DesignBuilder">&#11015; Export DXF</button>
@@ -291,7 +298,15 @@
   <button id="btnClear" style="margin-left:auto; color:#d33;">Clear all</button>
 </div>
 
-<input type="file" id="loadFile" accept="application/json,.json" style="display:none">
+<input type="file" id="loadFile" style="display:none">
+<div class="modal-overlay" id="recoverModal">
+  <div class="modal-card">
+    <h3>Recover a local backup</h3>
+    <div style="font-size:11px;color:#777;margin-bottom:8px;">Automatic backups on this device — last 5 per project. Use if OneDrive didn’t save. Tap one to restore it.</div>
+    <div id="recoverList" style="max-height:50vh;overflow:auto;"></div>
+    <button id="recoverCancel">Cancel</button>
+  </div>
+</div>
 <div class="main">
   <div class="canvas-wrap" id="wrap">
     <canvas id="cv"></canvas>
@@ -729,6 +744,63 @@ window.addEventListener('load', () => {
   };
   toggle.onclick = () => setPanelCollapsed(!sidebarEl.classList.contains('collapsed'));
   try { if (localStorage.getItem('emberPanelCollapsed') === '1') setPanelCollapsed(true); } catch (e) {}
+});
+
+// ---------- automatic local backups (last 5 per project) — safety net if OneDrive doesn't save ----------
+// Deferred to load: this sits above the const P definition, so referencing P here directly
+// would hit its temporal dead zone (same reason as the panel toggle above).
+window.addEventListener('load', () => {
+  const AUTOSAVE_KEY = 'ember-autosaves';
+  const loadAuto = () => { try { return JSON.parse(localStorage.getItem(AUTOSAVE_KEY)) || {}; } catch (e) { return {}; } };
+  const saveAuto = o => { try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(o)); } catch (e) {} };
+  let lastHash = '';
+  function autoSaveNow(force) {
+    if (!zones.length) return;                       // nothing worth backing up
+    const data = jobData();
+    const text = JSON.stringify(data);
+    if (!force && text === lastHash) return;         // unchanged since the last backup
+    lastHash = text;
+    const name = ((data.job || '').trim()) || 'Untitled';
+    const store = loadAuto();
+    const list = store[name] || [];
+    list.push({ savedAt: new Date().toISOString(), zones: (data.zones || []).length, data });
+    while (list.length > 5) list.shift();            // keep the last 5 per project
+    store[name] = list;
+    saveAuto(store);
+  }
+  const fmt = iso => {
+    try {
+      const d = new Date(iso), s = Math.floor((Date.now() - d.getTime()) / 1000);
+      if (s < 60) return 'just now';
+      const m = Math.floor(s / 60); if (m < 60) return m + ' min ago';
+      const h = Math.floor(m / 60); if (h < 24) return h + 'h ago';
+      return d.toLocaleString();
+    } catch (e) { return iso; }
+  };
+  function openRecover() {
+    const store = loadAuto(), rows = [];
+    Object.keys(store).forEach(name => (store[name] || []).forEach(snap => rows.push({ name, snap })));
+    rows.sort((a, b) => (b.snap.savedAt || '').localeCompare(a.snap.savedAt || ''));
+    const listEl = P('recoverList');
+    listEl.innerHTML = '';
+    if (!rows.length) {
+      listEl.innerHTML = '<div style="color:#777;padding:8px;font-size:12px;">No local backups yet — they build up automatically as you work.</div>';
+    } else rows.forEach(r => {
+      const zc = r.snap.zones != null ? r.snap.zones : (r.snap.data.zones || []).length;
+      const b = document.createElement('button');
+      b.className = 'recover-row';
+      b.innerHTML = '<b>' + esc(r.name) + '</b> &middot; ' + zc + ' zone' + (zc === 1 ? '' : 's') + ' &middot; <span style="color:#777;">' + esc(fmt(r.snap.savedAt)) + '</span>';
+      b.onclick = () => { applyJob(r.snap.data); P('recoverModal').classList.remove('show'); };
+      listEl.appendChild(b);
+    });
+    P('recoverModal').classList.add('show');
+  }
+  P('btnRecover').onclick = openRecover;
+  P('recoverCancel').onclick = () => P('recoverModal').classList.remove('show');
+  // triggers: every 30s if changed, plus when the app is backgrounded/closed (reliable on iOS)
+  setInterval(() => autoSaveNow(false), 30000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) autoSaveNow(true); });
+  window.addEventListener('pagehide', () => autoSaveNow(true));
 });
 
 function render() {
@@ -3392,7 +3464,7 @@ async function saveJobFile() {
   const text = JSON.stringify(jobData(), null, 2);
   try { localStorage.setItem('ember-survey-poc', text); } catch (e) {}
   const base = (P('jobName').value || 'survey').replace(/[\\\/:*?"<>|]+/g, '-').trim() || 'survey';
-  const fname = base + '.embersurvey.json';
+  const fname = base + '.json';
   try {
     const file = new File([text], fname, { type: 'application/json' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
