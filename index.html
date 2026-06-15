@@ -492,7 +492,8 @@
       <button id="winTableBtn">&#8862; Table entry</button>
       <div id="winTable" style="display:none;"></div>
       <button id="winPaste"></button>
-      <button class="danger" id="pDelete" style="margin-top:12px;">Delete zone</button>
+      <button id="pCombine" style="margin-top:12px;" title="Merge this zone with an adjacent zone that shares a wall and has the same survey data">&#9707; Combine with adjacent zone</button>
+      <button class="danger" id="pDelete" style="margin-top:8px;">Delete zone</button>
     </div>
     <div class="empty-note" id="emptyNote">No zone selected. Draw one on the grid, or click an existing zone in Select mode.</div>
 
@@ -1532,7 +1533,12 @@ cv.addEventListener('pointerdown', e => {
         id: zSel.id, i: we.i, n: outwardNormal(zSel, we.i),
         startX: x, startY: y, moved: false,
         orig: [{ ...zSel.pts[we.i] }, { ...zSel.pts[(we.i + 1) % n] }],
-        candidates: wallSnapCandidates(zSel, we.i)
+        candidates: wallSnapCandidates(zSel, we.i),
+        // a shared wall is ONE physical wall — capture the adjoining zones' coincident edges so they move WITH it
+        bonded: coincidentEdges(zSel, we.i).map(ce => ({
+          z: ce.z, j: ce.i,
+          orig: [{ ...ce.z.pts[ce.i] }, { ...ce.z.pts[(ce.i + 1) % ce.z.pts.length] }]
+        }))
       };
       selWall = we.i;
     } else {
@@ -1596,14 +1602,23 @@ cv.addEventListener('pointermove', e => {
       // perpendicular push: project pointer travel onto the wall's outward normal
       let d = (mouse.x - draggingWall.startX) * draggingWall.n.nx + (mouse.y - draggingWall.startY) * draggingWall.n.ny;
       if (Math.hypot(mouse.x - draggingWall.startX, mouse.y - draggingWall.startY) > 5 / view.k) draggingWall.moved = true;
+      const bonded = draggingWall.bonded && draggingWall.bonded.length;
       if (!shiftHeld) {
-        const c = draggingWall.candidates.find(c => Math.abs(d - c) <= 8 / view.k);   // flush with another zone's wall
+        // a bonded shared wall moves as one unit -> no flush-snap to a (now-moving) neighbour; just 0.25 m steps
+        const c = bonded ? undefined : draggingWall.candidates.find(c => Math.abs(d - c) <= 8 / view.k);
         if (c !== undefined) d = c;
-        else d = mToPx(Math.round(pxToM(d) * 4) / 4);                        // else 0.25 m steps
+        else d = mToPx(Math.round(pxToM(d) * 4) / 4);                        // 0.25 m steps
       }
       const n = z.pts.length;
-      z.pts[draggingWall.i] = { x: draggingWall.orig[0].x + draggingWall.n.nx * d, y: draggingWall.orig[0].y + draggingWall.n.ny * d };
-      z.pts[(draggingWall.i + 1) % n] = { x: draggingWall.orig[1].x + draggingWall.n.nx * d, y: draggingWall.orig[1].y + draggingWall.n.ny * d };
+      const vx = draggingWall.n.nx * d, vy = draggingWall.n.ny * d;
+      z.pts[draggingWall.i] = { x: draggingWall.orig[0].x + vx, y: draggingWall.orig[0].y + vy };
+      z.pts[(draggingWall.i + 1) % n] = { x: draggingWall.orig[1].x + vx, y: draggingWall.orig[1].y + vy };
+      // move the bonded neighbour edges by the SAME vector so the shared wall stays a single wall
+      (draggingWall.bonded || []).forEach(b => {
+        const m = b.z.pts.length;
+        b.z.pts[b.j] = { x: b.orig[0].x + vx, y: b.orig[0].y + vy };
+        b.z.pts[(b.j + 1) % m] = { x: b.orig[1].x + vx, y: b.orig[1].y + vy };
+      });
     }
   }
   if (draggingDoor) {
@@ -1937,7 +1952,7 @@ function renderWalls() {
     row.className = 'wall-row' + (selWall === i ? ' sel' : '');
     row.title = side + ' wall — tap the row to highlight it on the plan; tick boxes to set several wall types at once';
     row.innerHTML = '<input class="wsel" type="checkbox"' + (selWalls.has(i) ? ' checked' : '') + ' title="Tick walls, then use the Set… dropdown below">' +
-      '<b>' + (i + 1) + '</b><input class="len" type="number" step="0.01" min="0.05" inputmode="decimal" value="' + len + '"' +
+      '<b>' + (i + 1) + (isSharedEdge(z, i) ? ' <span style="color:#0b7285;font-size:10px;" title="Shared wall — one physical wall with the adjoining zone; moves and types together">&#8646;</span>' : '') + '</b><input class="len" type="number" step="0.01" min="0.05" inputmode="decimal" value="' + len + '"' +
       ' title="Wall length (m) — type the corrected figure: corner ' + (((i + 1) % z.pts.length) + 1) + ' slides along this wall and the next wall absorbs the change">' +
       '<span class="ori" title="' + side + ' wall · faces ' + wallOrientation(z, i).name + '">' + side.charAt(0).toUpperCase() + '</span>' +
       '<select' + (w.type && w.auto !== false ? ' class="auto" title="Defaulted from geometry — change it to confirm"' : '') + '>' + WALL_TYPES.map(t =>
@@ -2826,6 +2841,83 @@ P('pDelete').addEventListener('click', () => {
     select(null);
   });
 });
+
+// ---------- combine two zones into one ----------
+// Allowed only when the zones share a clean full wall AND their survey data matches (Shane's rule):
+// no data conflict to resolve, just a geometric union with the shared wall removed.
+const COMBINE_FIELDS = ['activity', 'height', 'heating', 'cooling', 'lighting', 'vent', 'hws'];
+function combineSurveyMatch(a, b) { return COMBINE_FIELDS.every(k => (a[k] || '') === (b[k] || '')); }
+
+// union of two polygons that share edge ia (zone A) / jb (zone B), with windows/doors/symbols
+// and manual wall types carried across by endpoint match. A is the host (keeps id/name/data).
+function combineZones(A, B, ia, jb) {
+  const aN = A.pts.length, bN = B.pts.length, TOL = 3;
+  const near = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) <= TOL;
+  ensureWalls(A); ensureWalls(B);
+  // snapshot old geometry (copies) so we can remap after A.pts is replaced
+  const snap = z => ({
+    pts: z.pts.map(p => ({ ...p })),
+    walls: z.walls.map(w => ({ ...w })),
+    windows: (z.windows || []).map((w, i) => ({ it: w, wi: w.wall, s: { ...z.pts[w.wall] }, e: { ...z.pts[(w.wall + 1) % z.pts.length] } })),
+    doors: (z.doors || []).map((d, i) => ({ it: d, wi: d.wall, s: { ...z.pts[d.wall] }, e: { ...z.pts[(d.wall + 1) % z.pts.length] } }))
+  });
+  const sa = snap(A), sb = snap(B);
+  // build the union outline: A's vertices from ia+1 all the way round, then B's from jb+2 round
+  const u = [];
+  for (let k = 0; k < aN; k++) u.push({ ...A.pts[(ia + 1 + k) % aN] });
+  for (let k = 0; k < bN - 1; k++) u.push({ ...B.pts[(jb + 2 + k) % bN] });
+  u.pop();   // last B vertex ≈ first A vertex — drop the closing duplicate
+  const uN = u.length;
+  const findEdge = (s, e) => { for (let k = 0; k < uN; k++) if (near(u[k], s) && near(u[(k + 1) % uN], e)) return k; return -1; };
+  // remap windows/doors: drop the ones on the shared wall, reindex the rest onto the new outline
+  const mapItems = (recs, sharedIdx) => recs
+    .filter(r => r.wi !== sharedIdx)
+    .map(r => { const nw = findEdge(r.s, r.e); if (nw < 0) return null; const c = { ...r.it }; c.wall = nw; return c; })
+    .filter(Boolean);
+  const windows = [...mapItems(sa.windows, ia), ...mapItems(sb.windows, jb)];
+  const doors   = [...mapItems(sa.doors, ia),   ...mapItems(sb.doors, jb)];
+  const symbols = [...(A.symbols || []), ...(B.symbols || [])];
+  // apply to host
+  A.pts = u;
+  delete A.walls; ensureWalls(A);
+  A.windows = windows; A.doors = doors; A.symbols = symbols;
+  // carry across manual wall types / adjoining flags by endpoint match
+  [[sa, ia], [sb, jb]].forEach(([s, sharedIdx]) => s.walls.forEach((w, wi) => {
+    if (wi === sharedIdx) return;
+    if (w.auto === false || w.party) {
+      const nw = findEdge(s.pts[wi], s.pts[(wi + 1) % s.pts.length]);
+      if (nw >= 0) { if (w.auto === false) { A.walls[nw].type = w.type; A.walls[nw].auto = false; } if (w.party) A.walls[nw].party = true; }
+    }
+  }));
+  zones = zones.filter(z => z.id !== B.id);
+  autoTypeWalls(); relabelWindows(); relabelDoors(A);
+}
+
+function tryCombineSelected() {
+  const A = zones.find(z => z.id === selectedId);
+  if (!A) return;
+  ensureWalls(A);
+  const near = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) <= 3;
+  let found = null, reason = 'No adjacent zone shares a wall with this one — combine needs two zones that touch along a wall.';
+  for (let ia = 0; ia < A.pts.length && !found; ia++) {
+    for (const ce of coincidentEdges(A, ia)) {
+      const B = ce.z, jb = ce.i;
+      const aS = A.pts[ia], aE = A.pts[(ia + 1) % A.pts.length], bS = B.pts[jb], bE = B.pts[(jb + 1) % B.pts.length];
+      if (!(near(aS, bE) && near(aE, bS))) { reason = 'The shared wall with "' + B.name + '" doesn’t line up cleanly (partial overlap) — combine needs a full shared wall.'; continue; }
+      if (!combineSurveyMatch(A, B)) { reason = '"' + B.name + '" has different survey data — combine only merges zones whose survey data matches. Make them match first, or leave them separate.'; continue; }
+      found = { B, ia, jb }; break;
+    }
+  }
+  if (!found) { askConfirm(reason, () => {}, 'OK'); return; }
+  const B = found.B;
+  askConfirm('Combine "' + A.name + '" with "' + B.name + '"? They share a wall and their survey data matches — they’ll become one zone (undo with Undo).', () => {
+    pushUndo();
+    combineZones(A, B, found.ia, found.jb);
+    select(A.id);
+    render(); renderWalls(); renderWindows(); renderDoors(); refreshList();
+  }, 'Combine');
+}
+P('pCombine').addEventListener('click', tryCombineSelected);
 // Robust tap binding for touch: on iPad a `click` can be missed/swallowed after a canvas
 // gesture, so fire on pointerup for touch/pen and dedupe the synthetic click that follows.
 function onTap(el, fn) {
