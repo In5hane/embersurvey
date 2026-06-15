@@ -291,6 +291,7 @@
   <button id="btnClear" style="margin-left:auto; color:#d33;">Clear all</button>
 </div>
 
+<input type="file" id="loadFile" accept="application/json,.json" style="display:none">
 <div class="main">
   <div class="canvas-wrap" id="wrap">
     <canvas id="cv"></canvas>
@@ -3350,14 +3351,9 @@ function jobData() {
     }))
   };
 }
-P('btnSave').onclick = () => {
-  localStorage.setItem('ember-survey-poc', JSON.stringify(jobData()));
-  alert('Saved in this browser (localStorage).');
-};
-P('btnLoad').onclick = () => {
-  const raw = localStorage.getItem('ember-survey-poc');
-  if (!raw) return alert('Nothing saved yet.');
-  const d = JSON.parse(raw);
+// apply a parsed job object to the app (shared by file-load + the localStorage backup)
+function applyJob(d) {
+  if (!d || typeof d !== 'object') throw new Error('not a job');
   P('jobName').value = d.job || '';
   document.getElementById('scale').value = d.scaleMetresPerSquare || 0.5;
   document.getElementById('north').value = d.northDeg || 0;
@@ -3388,7 +3384,35 @@ P('btnLoad').onclick = () => {
   renderGlazList();
   nextId = Math.max(0, ...zones.map(z => z.id)) + 1;
   select(null); render(); refreshList();
-};
+}
+
+// Save -> a job file handed to the OS: iOS share sheet (Save to OneDrive via Files) on mobile,
+// download on desktop. A localStorage copy is also kept as a crash-safety backup.
+async function saveJobFile() {
+  const text = JSON.stringify(jobData(), null, 2);
+  try { localStorage.setItem('ember-survey-poc', text); } catch (e) {}
+  const base = (P('jobName').value || 'survey').replace(/[\\\/:*?"<>|]+/g, '-').trim() || 'survey';
+  const fname = base + '.embersurvey.json';
+  try {
+    const file = new File([text], fname, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: base });   // -> Save to Files / OneDrive
+      return;
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return; }      // user dismissed the share sheet
+  download(fname, text, 'application/json');                     // desktop / no-share fallback
+}
+P('btnSave').onclick = saveJobFile;
+// Load -> OS file picker (Files app shows OneDrive); read + apply the chosen job file.
+P('btnLoad').onclick = () => { const inp = P('loadFile'); inp.value = ''; inp.click(); };
+P('loadFile').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { try { applyJob(JSON.parse(r.result)); } catch (err) { alert('Could not read that file — pick an EmberSurvey job (.json) saved from this app.'); } };
+  r.onerror = () => alert('Could not open that file.');
+  r.readAsText(f);
+});
 P('btnJson').onclick = () => download((P('jobName').value || 'survey') + '.json', JSON.stringify(jobData(), null, 2), 'application/json');
 P('btnCsv').onclick = () => {
   const csvCell = v => '"' + String(v).replace(/"/g,'""') + '"';
@@ -3538,11 +3562,13 @@ P('btnPrint').onclick = () => {
     'th{background:#f0f0f0}' +
     '#bar{position:sticky;top:0;background:#fff;padding:8px 0 10px;border-bottom:1px solid #eee;margin-bottom:12px}' +
     '#bar button{font-size:16px;padding:10px 18px;background:#E76C13;color:#fff;border:0;border-radius:8px}' +
-    '#bar span{font-size:12px;color:#666;margin-left:10px}' +
+    '#bar button.close{background:#555;margin-left:8px}' +
+    '#bar span{font-size:12px;color:#666;margin-left:10px;display:block;margin-top:6px}' +
     '@media print{#bar{display:none}}' +
     '</style></head><body>' +
     '<div id="bar"><button onclick="window.print()">&#128424; Print / Save as PDF</button>' +
-    '<span>iPad: tap Print, then Share &rarr; Save to PDF</span></div>' +
+    '<button class="close" onclick="window.close()">&#10005; Close</button>' +
+    '<span>iPad: tap Print &rarr; Share &rarr; Save to PDF (OneDrive), then tap Close. If Close does nothing, swipe back to EmberSurvey in the app switcher.</span></div>' +
     '<h1>' + title + '</h1>' +
     '<img src="' + img + '">' +
     '<table><thead><tr><th>Zone</th><th>Height (m)</th><th>Area (m²)</th><th>Lighting</th><th>Heating</th><th>Windows</th></tr></thead>' +
