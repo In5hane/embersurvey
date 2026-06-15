@@ -27,6 +27,7 @@
     display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   }
   header h1 { font-size: 17px; font-weight: 600; }
+  header h1 .ver { font-size: 11px; font-weight: 400; opacity: 0.75; margin-left: 2px; }
   header .sub { font-size: 12px; opacity: 0.9; }
   header input#jobName {
     margin-left: auto; padding: 6px 10px; border: none; border-radius: 4px;
@@ -252,7 +253,7 @@
 <body>
 
 <header>
-  <h1>EmberSurvey</h1>
+  <h1>EmberSurvey <span class="ver">v0.45</span></h1>
   <span class="sub">Commercial EPC site survey &middot; Ember Energy NI</span>
   <input id="jobName" placeholder="Job / property address…">
 </header>

@@ -1,7 +1,8 @@
 // EmberSurvey — offline service worker.
 // Cache-first so the app opens on site with no signal. Bump CACHE on every release
 // (the version suffix is what makes installed iPads pick up a new build).
-const CACHE = 'ember-survey-v044';
+// NOTE: keep this version in sync with the <span class="ver"> in index.html's header.
+const CACHE = 'ember-survey-v045';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
