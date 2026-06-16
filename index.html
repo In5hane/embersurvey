@@ -253,7 +253,7 @@
 <body>
 
 <header>
-  <h1>EmberSurvey <span class="ver">v0.45</span></h1>
+  <h1>EmberSurvey <span class="ver">v0.46</span></h1>
   <span class="sub">Commercial EPC site survey &middot; Ember Energy NI</span>
   <input id="jobName" placeholder="Job / property address…">
 </header>
@@ -3620,6 +3620,24 @@ P('btnPrint').onclick = () => {
     return '<tr><td><b>' + esc(z.name) + '</b></td><td>' + (z.height || '—') + '</td><td>' + zoneAreaM2(z).toFixed(1) +
       '</td><td>' + esc(z.lighting || '—') + '</td><td>' + esc(z.heating || '—') + '</td><td>' + esc(wins) + '</td></tr>';
   }).join('');
+  // dedicated window schedule — every window's full dimensions across all zones
+  let winRows = '';
+  zones.forEach(z => {
+    (z.windows || []).forEach(w => {
+      const paneTxt = (w.panes && w.panes.length)
+        ? w.panes.map(p => p.w + '×' + p.h + ((p.n || 1) > 1 ? ' ×' + p.n : '')).join(', ')
+        : (w.ignorePanes ? 'panes ignored' : '—');
+      const gl = winGlazedM2(w);
+      winRows += '<tr><td>' + esc(z.name) + '</td><td><b>' + esc(w.label || 'W?') + '</b>' +
+        (winValid(w) ? '' : ' <span style="color:#d33">!</span>') + '</td><td>' + (w.w || '—') + '</td><td>' +
+        (w.h || '—') + '</td><td>' + esc(paneTxt) + '</td><td>' + winPaneCount(w) + '</td><td>' +
+        esc(w.code || '—') + '</td><td>' + (gl ? gl.toFixed(2) : '—') + '</td></tr>';
+    });
+  });
+  const winTable = '<h2 style="font-size:16px;color:#E76C13;margin:18px 0 8px">Window schedule</h2>' + (winRows
+    ? '<table><thead><tr><th>Zone</th><th>Window</th><th>Width (m)</th><th>Height (m)</th><th>Panes (W×H)</th><th>Panes</th><th>Glazing code</th><th>Glazed area (m²)</th></tr></thead><tbody>' +
+      winRows + '</tbody></table>'
+    : '<p style="font-size:12px;color:#666">No windows recorded.</p>');
   const title = esc(P('jobName').value || 'Commercial survey');
   // The doc that actually gets printed — opened in its OWN tab only when the surveyor taps
   // Print/Save-as-PDF, because window.print() is dead in an iOS standalone PWA and sandboxed
@@ -3645,7 +3663,7 @@ P('btnPrint').onclick = () => {
     '<h1>' + title + '</h1>' +
     '<img src="' + img + '">' +
     '<table><thead><tr><th>Zone</th><th>Height (m)</th><th>Area (m²)</th><th>Lighting</th><th>Heating</th><th>Windows</th></tr></thead>' +
-    '<tbody>' + rows + '</tbody></table></body></html>';
+    '<tbody>' + rows + '</tbody></table>' + winTable + '</body></html>';
   // Show the preview as an IN-APP overlay (not a hijack into Safari) so the surveyor can always
   // tap Back to return to the drawing. Printing is then a separate explicit action.
   let ov = document.getElementById('printOverlay');
@@ -3666,7 +3684,7 @@ P('btnPrint').onclick = () => {
       '<h1 style="font-size:20px;color:#E76C13;margin:0 0 10px">' + title + '</h1>' +
       '<img src="' + img + '" style="display:block;max-width:100%;border:1px solid #ccc;margin-bottom:14px">' +
       '<table><thead><tr><th>Zone</th><th>Height (m)</th><th>Area (m²)</th><th>Lighting</th><th>Heating</th><th>Windows</th></tr></thead>' +
-      '<tbody>' + rows + '</tbody></table>' +
+      '<tbody>' + rows + '</tbody></table>' + winTable +
     '</div>';
   document.body.appendChild(ov);
   // Back — just close the overlay, stay in the app

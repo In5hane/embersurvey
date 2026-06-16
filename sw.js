@@ -2,7 +2,7 @@
 // Cache-first so the app opens on site with no signal. Bump CACHE on every release
 // (the version suffix is what makes installed iPads pick up a new build).
 // NOTE: keep this version in sync with the <span class="ver"> in index.html's header.
-const CACHE = 'ember-survey-v045';
+const CACHE = 'ember-survey-v046';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
